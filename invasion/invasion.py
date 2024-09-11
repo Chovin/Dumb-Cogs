@@ -35,7 +35,10 @@ class Invasion(commands.Cog):
     async def invasion(self, ctx: commands.Context) -> None:
         """Invasion preparation commands"""
         if ctx.invoked_subcommand is None:
-            channels = [ctx.guild.get_channel(cid) for cid in await self.config.guild(ctx.guild).VISIT_ON()]
+            channels = [
+                ctx.guild.get_channel(cid) for cid in 
+                (await self.config.guild(ctx.guild).VISIT_ON() or [])
+            ]
             role = ctx.guild.get_role(await self.config.guild(ctx.guild).MENTION_ROLE())
             min_freq = await self.config.guild(ctx.guild).MIN_INVASION_FREQUENCY_MINUTES()
             max_freq = await self.config.guild(ctx.guild).MAX_INVASION_FREQUENCY_MINUTES()
