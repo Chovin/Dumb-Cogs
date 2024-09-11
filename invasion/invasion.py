@@ -66,7 +66,6 @@ class Invasion(commands.Cog):
                 colour=discord.Colour.blue()
             )
             await ctx.send(embed=embed)
-            await ctx.send_help(ctx.command)
     
     @invasion.command()
     async def role(self, ctx: commands.Context, role: discord.Role = None) -> None:
