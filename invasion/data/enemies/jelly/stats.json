@@ -1,0 +1,8 @@
+{
+    "name": "Jelly Alien",
+    "lingers": 10,
+    "health": 10,
+    "armor": 0,
+    "reward_mult": 1,
+    "penalty_mult": 1
+}
