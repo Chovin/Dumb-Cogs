@@ -54,8 +54,8 @@ class Invasion(commands.Cog):
             embed = discord.Embed(
                 title="Invasion Settings",
                 description=(
-                    f"**Defenseless channels**: {', '.join([c.mention for c in channels])}\n"
-                    f"**Defender role**: {role or role.mention}\n"
+                    f"**Vulnerable channels**: {', '.join([c.mention for c in channels])}\n"
+                    f"**Defender role**: {role and role.mention}\n"
                     f"**Invasion frequency**: " + (
                         f"{min_hours:.2f} to {max_hours:.2f} hours" if min_hours > 1 else 
                         f"{min_freq} to {max_freq} minutes") + "\n"
@@ -72,7 +72,7 @@ class Invasion(commands.Cog):
     async def role(self, ctx: commands.Context, role: discord.Role = None) -> None:
         """Set the role that will be mentioned when a monster is attacking"""
 
-        await self.config.guild(ctx.guild).MENTION_ROLE.set(role or role.id)
+        await self.config.guild(ctx.guild).MENTION_ROLE.set(role and role.id)
         if role is not None:
             await ctx.send(f"The {role.name} role will now be mentioned when a monster attacks.")
         else:
@@ -83,7 +83,7 @@ class Invasion(commands.Cog):
         """Weakens defenses on a channel, incentivising monsters to attack there"""
 
         guild = ctx.guild
-        channel = channel or ctx.channel
+        channel = channel and ctx.channel
         cid = channel.id
         enabled_channels = await self.config.guild(guild).ENABLED_CHANNELS()
         if cid in enabled_channels:
