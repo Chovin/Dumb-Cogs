@@ -82,7 +82,7 @@ class Invasion(commands.Cog):
         """Weakens defenses on a channel, incentivising monsters to attack there"""
 
         guild = ctx.guild
-        channel = channel and ctx.channel
+        channel = channel or ctx.channel
         cid = channel.id
         enabled_channels = await self.config.guild(guild).ENABLED_CHANNELS()
         if cid in enabled_channels:
