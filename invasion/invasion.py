@@ -30,7 +30,7 @@ class Invasion(commands.Cog):
             "MAX_USERS_TO_PENALIZE": 4
         })
         
-
+    @commands.group()
     @checks.admin_or_permissions(manage_guild=True)
     async def invasion(self, ctx: commands.Context) -> None:
         """Invasion preparation commands"""
