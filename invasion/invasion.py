@@ -35,21 +35,22 @@ class Invasion(commands.Cog):
     async def invasion(self, ctx: commands.Context) -> None:
         """Invasion preparation commands"""
         if ctx.invoked_subcommand is None:
+            settings = await self.config.guild(ctx.guild).all()
             channels = [
                 ctx.guild.get_channel(cid) for cid in 
-                (await self.config.guild(ctx.guild).VISIT_ON() or [])
+                (settings['VISIT_ON'] or [])
             ]
-            role = ctx.guild.get_role(await self.config.guild(ctx.guild).MENTION_ROLE())
-            min_freq = await self.config.guild(ctx.guild).MIN_INVASION_FREQUENCY_MINUTES()
-            max_freq = await self.config.guild(ctx.guild).MAX_INVASION_FREQUENCY_MINUTES()
+            role = ctx.guild.get_role(settings['MENTION_ROLE'])
+            min_freq = settings['MIN_INVASION_FREQUENCY_MINUTES']
+            max_freq = settings['MAX_INVASION_FREQUENCY_MINUTES']
             min_hours = min_freq / 60
             max_hours = max_freq / 60
-            min_reward = await self.config.guild(ctx.guild).MIN_REWARD()
-            max_reward = await self.config.guild(ctx.guild).MAX_REWARD()
-            min_penalty = await self.config.guild(ctx.guild).MIN_PENALTY()
-            max_penalty = await self.config.guild(ctx.guild).MAX_PENALTY()
-            min_users = await self.config.guild(ctx.guild).MIN_USERS_TO_PENALIZE()
-            max_users = await self.config.guild(ctx.guild).MAX_USERS_TO_PENALIZE()
+            min_reward = settings['MIN_REWARD']
+            max_reward = settings['MAX_REWARD']
+            min_penalty = settings['MIN_PENALTY']
+            max_penalty = settings['MAX_PENALTY']
+            min_users = settings['MIN_USERS_TO_PENALIZE']
+            max_users = settings['MAX_USERS_TO_PENALIZE']
 
             embed = discord.Embed(
                 title="Invasion Settings",
