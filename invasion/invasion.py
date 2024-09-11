@@ -92,7 +92,7 @@ class Invasion(commands.Cog):
             return
         enabled_channels.append(cid)
         await self.config.guild(guild).ENABLED_CHANNELS.set(list(set(enabled_channels)))
-        await ctx.send(f"You strategicly put a hole in the defenses in {channel.mention}. Monsters will now attack this channel.")
+        await ctx.send(f"You strategicly put a hole in the defenses of {channel.mention}. Monsters will now attack this channel.")
 
     @invasion.command()
     async def frequency(self, ctx: commands.Context, min_mins: int, max_mins: int = 0) -> None:
