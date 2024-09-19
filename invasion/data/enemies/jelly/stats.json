@@ -1,11 +1,12 @@
 {
     "name": "Jelly Alien",
-    "lingers": 10,
-    "health": 10,
+    "lingers": 5,
+    "health": 12,
     "armor": 0,
     "reward_mult": 1,
-    "penalty_mult": 1,
+    "enrage_titles_override": null,
     "arrival_weight": 1,
+    "arrival_countdown": 1,
     "states": {
         "arriving": {
             "msg": ["Get ready to defend your server!"]
@@ -13,43 +14,46 @@
         "dying": {
             "msg": [
                 "You've defeated this gelatonous fiend! Searching through its ship you find alien tech to sell.", 
-                "You scare off the alien. It runs back to its ship and takes off but drops its wallet so you take it.",
-                "You blow up the alien and its ship! The president is satisfied and rewards you."
+                "You scare off the {name}. It runs back to its ship and takes off but drops its wallet so you take it.",
+                "You blow up the {name} and its ship! The president is satisfied and rewards you."
             ]
         },
         "attacking": {
             "msg": [
-                "You've failed to fight off the alien and it shoots its lazer-beam eyes into the server.",
-                "You are overrun by the jelly aliens and they shoot at the channel's citizens!"
+                "You've failed to fight off the {name} and it shoots its lazer-beam eyes into the server.",
+                "You are overrun by the {name} and it shoots at the channel's citizens!"
             ],
             "damage": 1
         },
         "standing": {
             "msg": [
-                "The Jelly Alien stands tall and prepares to attack. Quick! It's susceptible to both punches and kicks!",
-                "The alien towers over you but do not falter, this only makes it easier to hit!"
+                "The {name} stands tall and prepares to attack. Quick! It's susceptible to both punches and kicks!",
+                "The {name} towers over you but do not falter, this only makes it easier to hit!"
             ],
-            "hurt_by": ["👊", "\\N{LEG}"],
+            "hurt_by": ["👊", "🦵"],
             "default": true,
             "added_armor": 0.25,
-            "active": true
+            "active": true,
+            "hittable": true
         },
         "crouching": {
             "msg": [
-                "The Jelly Alien crouches under all your punches",
-                "The Jelly Alien crouches, avoiding all the punches!"
+                "The {name} crouches under all your punches",
+                "The {name} crouches, avoiding all the punches!"
             ],
-            "hurt_by": ["\\N{LEG}"],
+            "hurt_by": ["🦵"],
             "active": true,
+            "hittable": true,
             "weight": 1.25
         },
         "jumping": {
             "msg": [
-                "The Jelly Alien jumps and almost seems to hover just above your kicking range.",
-                "The Jelly Alien jumps up high thwarting your attempts to kick it!"
+                "The {name} jumps and almost seems to hover just above your kicking range.",
+                "The {name} jumps up high thwarting your attempts to kick it!"
             ],
             "hurt_by": ["👊"],
             "active": true,
+            "hittable": true,
             "weight": 1.25
         }
     }
