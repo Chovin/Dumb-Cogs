@@ -4,8 +4,9 @@
     "health": 12,
     "armor": 0,
     "reward_mult": 1,
-    "penalty_mult": 1,
+    "enrage_titles_override": null,
     "arrival_weight": 1,
+    "arrival_countdown": 1,
     "states": {
         "arriving": {
             "msg": ["Get ready to defend your server!"]
@@ -32,7 +33,8 @@
             "hurt_by": ["👊", "🦵"],
             "default": true,
             "added_armor": 0.25,
-            "active": true
+            "active": true,
+            "hittable": true
         },
         "crouching": {
             "msg": [
@@ -41,6 +43,7 @@
             ],
             "hurt_by": ["🦵"],
             "active": true,
+            "hittable": true,
             "weight": 1.25
         },
         "jumping": {
@@ -50,6 +53,7 @@
             ],
             "hurt_by": ["👊"],
             "active": true,
+            "hittable": true,
             "weight": 1.25
         }
     }
