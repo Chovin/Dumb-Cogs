@@ -29,7 +29,7 @@
                 "The {name} stands tall and prepares to attack. Quick! It's susceptible to both punches and kicks!",
                 "The {name} towers over you but do not falter, this only makes it easier to hit!"
             ],
-            "hurt_by": ["👊", "\\N{LEG}"],
+            "hurt_by": ["👊", "🦵"],
             "default": true,
             "added_armor": 0.25,
             "active": true
@@ -39,7 +39,7 @@
                 "The {name} crouches under all your punches",
                 "The {name} crouches, avoiding all the punches!"
             ],
-            "hurt_by": ["\\N{LEG}"],
+            "hurt_by": ["🦵"],
             "active": true,
             "weight": 1.25
         },
