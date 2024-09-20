@@ -76,6 +76,7 @@ class Invasion(commands.Cog):
         return enemy_paths
         
     async def cog_load(self) -> None:
+        await self.bot.wait_until_ready()
         await super().cog_load()
         for guild_id in await self.config.all_guilds():
             self.initiate_invasion(self.bot.get_guild(guild_id))
