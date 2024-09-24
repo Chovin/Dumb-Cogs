@@ -6,7 +6,15 @@ from redbot.core.data_manager import cog_data_path, bundled_data_path
 
 import os
 import platform
+import asyncio
+from datetime import datetime
 
+
+class PICO8TookTooLong(Exception):
+  pass
+
+class PICO8Error(Exception):
+  pass
 
 class Pico8(commands.Cog):
     """
@@ -26,14 +34,102 @@ class Pico8(commands.Cog):
             force_registration=True,
         )
         self.config.register_global(
-            PICO8_PATH = None
+            PICO8_PATH = None,
+            PICO_INITED = False
         )
-        self.PICO8_FOLDER = cog_data_path(self) / "put_pico8_folder_here"
+        data_path = cog_data_path(self)
+        self.PICO8_FOLDER = data_path / "put_pico8_folder_here"
         if not os.path.exists(self.PICO8_FOLDER):
             os.mkdir(self.PICO8_FOLDER)
-        self.TEMP_FOLDER = cog_data_path(self) / "temp"
+        # user to copy/scp pico-8 into this location
         self.ROOT_PICO8_PATH = self.PICO8_FOLDER / "pico-8"
 
+        self.TEMP_FOLDER = data_path / ".temp"
+        self.CONFIG_FOLDER = data_path / ".pico8_root"
+        self.CONFIG_FILE = self.CONFIG_FOLDER / "config.txt"
+        self.CARTS_FOLDER = data_path / ".carts"
+
+        paths = [self.PICO8_FOLDER, self.TEMP_FOLDER, self.CONFIG_FOLDER, self.CARTS_FOLDER]
+        for p in paths:
+            if not os.path.exists(p):
+                os.mkdir(p)
+
+        P8_FOLDER = bundled_data_path(self) / "p8"
+        self.INITIALIZER_P8 = P8_FOLDER / "initial.p8"
+        self.GIF_P8 = P8_FOLDER / "gif.p8"
+        self.PIC_P8 = P8_FOLDER / "pic.p8"
+
+
+    async def setup_pico8(self):
+        if not os.path.exists(self.CONFIG_FILE):
+            await self.runpico(self.INITIALIZER_P8, .5, 10)
+            await asyncio.sleep(5)
+        await self.config.PICO_INITED.set(True)
+    
+    async def output_from_process(self, p, dest, err=False):
+        buffer = p.stdout
+        if err:
+            buffer = p.stderr
+        line = await buffer.readline()
+        d = line.decode()
+        dest.append(d)
+
+    async def runpico(self, fn, length, timeout, scale=None, desktop_folder=None):
+        output = ''
+        fn = str(fn)
+        desktop_folder = desktop_folder or self.TEMP_FOLDER
+        pico8_path = await self.config.PICO8_PATH()
+        cmd = (f'{pico8_path} -x -gif_len 120 '
+            f'-home {self.CONFIG_FOLDER} '
+            f'-root_path {self.CARTS_FOLDER} '
+            f'-desktop {desktop_folder} '
+        )
+        if scale:
+            cmd += f'-screenshot_scale {scale} -gif_scale {scale} '
+        cmd += fn
+        p = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        # await asyncio.sleep(length)
+
+        start = datetime.now()
+        error_time = None
+        out = []
+        # err = []
+        while True:
+            task = asyncio.Task(self.output_from_process(p, out))
+            task2 = asyncio.Task(self.output_from_process(p, out, True))
+            done, pending = await asyncio.wait([task, task2], timeout=1)
+            if pending:
+                while pending:
+                    pending.pop().cancel()
+            if p.returncode is not None:
+                outp, errp = await p.communicate()
+                out.append(outp.decode())
+                out.append(errp.decode())
+                break
+            now = datetime.now()
+            if error_time and (now - error_time).total_seconds() > 1:
+                p.terminate()
+                output = ''.join(out[1:])
+                raise PICO8Error(output)
+            if ('error' in ''.join(out[1:])) and not error_time:
+                error_time = now
+            if (now - start).total_seconds() > timeout:
+                p.terminate()
+                output = ''.join(out[1:])
+                if error_time:
+                    raise PICO8Error(output)
+                raise PICO8TookTooLong
+        
+        output = ''.join(out[1:])
+        return output
+    
+    
+    
 
     @checks.is_owner()
     @commands.command()
@@ -86,6 +182,9 @@ class Pico8(commands.Cog):
             await ctx.send("I can't find your pico-8 executable. Are you sure you downloaded pico-8 for the right platform?")
         await self.config.PICO8_PATH.set(exe_postfix)
 
+        await ctx.send("Setting up PICO-8...")
+        
+        await self.setup_pico8()
 
         await ctx.send("PICO-8 has been registered with this cog\nsending test gif...")
 
