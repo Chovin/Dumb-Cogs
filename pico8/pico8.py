@@ -518,11 +518,11 @@ class Pico8(commands.Cog):
             await ctx.send("I can't find your pico-8 executable. Are you sure you downloaded pico-8 for the right platform?")
         await self.config.PICO8_PATH.set(exe_postfix)
 
-        await ctx.send("Setting up PICO-8...")
+        msg = await ctx.send("Setting up PICO-8...")
         
         await self.setup_pico8()
 
-        await ctx.send("PICO-8 has been registered with this cog\nsending test gif...")
+        await msg.edit(content="PICO-8 has been registered with this cog\nGenerating test gif...")
 
         await self._pico_record_cmd(ctx, 1, read_file(self.TEST_GIF_PATH))
 
