@@ -50,13 +50,13 @@ class Enemy():
             "Enraged",
             "Formidable",
             "Rampaging",
-            "Ferocious"
+            "Ferocious",
             "Epic",
             "Mythic",
             "Ancient",
             "Colossal",
             "Unstoppable",
-            "Apocalyptic"
+            "Apocalyptic",
             "Eternal",
             "Divine"
         ]
