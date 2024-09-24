@@ -1,0 +1,29 @@
+{
+    "$schema": "https://raw.githubusercontent.com/Cog-Creators/Red-DiscordBot/V3/develop/schema/red_cog.schema.json",
+    "name": "Pico8",
+    "short": "Creates pictures and gifs out of PICO-8 code",
+    "description": "Runs PICO-8 code and generates gifs or pictures out of the output. Also provides some facilities for adding transparency and other simple editing features.",
+    "end_user_data_statement": "This cog does not persistently store any data or metadata about users.",
+    "install_msg": "You've installed the PICO-8 cog! Time to gif it up with some PICO-8 code!\n\nBefore using this cog you'll need to install a couple things. You can find out how by using [p]pico8install.\n\nMake sure to check out the help ([p]help p8gif), there's lots of options you can use in your PICO-8 code :)\n\nNote, as this cog runs the PICO-8 executable to generate gifs and pictures, it may be somewhat IO intensive even though PICO-8 is run in headless mode.",
+    "author": [
+        "chovin (irdumb)"
+    ],
+    "required_cogs": {},
+    "requirements": [
+        "numpy",
+        "Pillow"
+    ],
+    "tags": [
+        "pico-8",
+        "code",
+        "repl",
+        "pico8",
+        "gif",
+        "pixel-art",
+        "art"
+    ],
+    "min_bot_version": "3.5.0",
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}
