@@ -1,0 +1,8 @@
+{
+    "author" : ["chovin (irdumb)"],
+    "install_msg" : "Message the user will recieve when they agree to install your repository.",
+    "name" : "Name of your repository.",
+    "short" : "Various engagement, quality of life cogs and tools",
+    "description" : "Various engagement, quality of life cogs and tools",
+    "tags" : ["fun", "tools", "quality of life", "games"]
+}
