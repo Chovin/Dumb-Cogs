@@ -291,7 +291,6 @@ class Pico8(commands.Cog):
         dest.append(d)
 
     async def runpico(self, fn, length, timeout, scale=None, desktop_folder=None, *, out_buffer):
-        output = ''
         fn = str(fn)
         desktop_folder = desktop_folder or self.TEMP_FOLDER
         pico8_path = self.ROOT_PICO8_PATH / await self.config.PICO8_PATH()
@@ -333,18 +332,20 @@ class Pico8(commands.Cog):
             if error_time and (now - error_time).total_seconds() > 1:
                 p.terminate()
                 output = ''.join(out[1:])
+                out_buffer.write(output)
                 raise PICO8Error(output)
             if ('error' in ''.join(out[1:])) and not error_time:
                 error_time = now
             if (now - start).total_seconds() > timeout:
                 p.terminate()
                 output = ''.join(out[1:])
+                out_buffer.write(output)
                 if error_time:
                     raise PICO8Error(output)
                 raise PICO8TookTooLong
         
         output = ''.join(out[1:])
-        return output
+        out_buffer.write(output)
     
     async def record(self, ctx, folder, draw_code, length, setup_code="", gif=True, options={}, second_try=False, *, out_buffer):
         # fill in code
@@ -426,6 +427,7 @@ class Pico8(commands.Cog):
         temp_folder = self.TEMP_FOLDER / str(self.foldern)
         if not os.path.exists(temp_folder):
             os.mkdir(temp_folder)
+        self.foldern += 1
 
         # run pico8
         msg = await ctx.send('Running PICO8! Wait a moment~')
