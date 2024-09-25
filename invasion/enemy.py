@@ -34,6 +34,11 @@ class Enemy():
         self.actions = []
         for v in self.states.values():
             self.actions += v.get('hurt_by', [])
+        self.sprites = {
+            state: v.get('sprite', 
+                [s for s in os.listdir(f"{self.path}/animations") if re.match(state + r"\.[a-z]+", s)][0]
+            ) for state, v in self.states.items()
+        }
 
         default_states = [k for k,v in self.states.items() if v.get('default')]
         if not default_states:
@@ -126,10 +131,8 @@ class Enemy():
 
     @property
     def animation(self):
-        sprite = self.states[self.state].get("sprite", None)
-        if sprite is None:
-            sprite = [s for s in os.listdir(f"{self.path}/animations") if re.match(self.state + f"\.[a-z]+", s)][0]
-        return discord.File(f"{self.path}/animations/{sprite}", filename=sprite) 
+        sprite_fn = self.sprites[self.state]
+        return discord.File(f"{self.path}/animations/{sprite_fn}", filename=sprite_fn) 
     
     @property
     def attacked_by_distribution(self):
