@@ -4,7 +4,7 @@
     "short": "Fight off random monster encounters for currency",
     "description": "Monsters are invading and they want your currency! When they arrive, who will be brave enough to fight them off?",
     "end_user_data_statement": "This cog does not persistently store any data or metadata about users.",
-    "install_msg": "Monsters have started to appear in your server! Can your members fight them off? See [p]help Invasion to learn how to use this cog. Want to add monsters or help improve this cog? Check out [my repo](https://github.com/Chovin/Dumb-Cogs/blob/main/CONTRIBUTING.md) for how :)",
+    "install_msg": "Monsters have started to appear in your server! Can your members fight them off? See [p]help Invasion to learn how to use this cog. Want to add monsters or help improve this cog? Check out [my repo](https://github.com/Chovin/Dumb-Cogs/blob/main/CONTRIBUTING.md) for how :)\n\nNote, this cog includes bundled data that is the monster animations and etc.",
     "author": [
         "chovin (irdumb)"
     ],
