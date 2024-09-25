@@ -9,7 +9,8 @@
     "arrival_countdown": 1,
     "states": {
         "arriving": {
-            "msg": ["Get ready to defend your server!"]
+            "msg": ["Get ready to defend your server!"],
+            "sprite": "arriving.gif"
         },
         "dying": {
             "msg": [

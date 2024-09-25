@@ -5,6 +5,8 @@ import random
 import json
 import asyncio
 import math
+import re
+import os
 
 
 ARRIVING_STATE = "arriving"
@@ -29,10 +31,6 @@ class Enemy():
         self.arrival_countdown = stats['arrival_countdown']
         self._active_states = [k for k, v in self.states.items() if v.get('active')]
         self._hittable_states = [k for k, v in self.states.items() if v.get('hittable')]
-        self.animations = {
-            anim: discord.File(f"{self.path}/animations/{anim}.gif", filename=f"{anim}.gif") 
-            for anim in self.states
-        }
         self.actions = []
         for v in self.states.values():
             self.actions += v.get('hurt_by', [])
@@ -128,8 +126,10 @@ class Enemy():
 
     @property
     def animation(self):
-        return discord.File(f"{self.path}/animations/{self.state}.gif", filename=f"{self.state}.gif") 
-        # return self.animations[self.state]
+        sprite = self.states[self.state].get("sprite", None)
+        if sprite is None:
+            sprite = [s for s in os.listdir(f"{self.path}/animations") if re.match(self.state + f"\.[a-z]+", s)][0]
+        return discord.File(f"{self.path}/animations/{sprite}", filename=sprite) 
     
     @property
     def attacked_by_distribution(self):
