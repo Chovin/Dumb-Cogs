@@ -33,6 +33,9 @@ class Enemy():
             anim: discord.File(f"{self.path}/animations/{anim}.gif", filename=f"{anim}.gif") 
             for anim in self.states
         }
+        self.actions = []
+        for v in self.states.values():
+            self.actions += v.get('hurt_by', [])
 
         default_states = [k for k,v in self.states.items() if v.get('default')]
         if not default_states:

@@ -409,7 +409,11 @@ class Invasion(commands.Cog):
         if cooldown < 0:
             await ctx.send("The cooldown must be greater than or equal to 0.")
             return
-        await self.config.guild(ctx.guild).PROVOKE_COOLDOWN.set(cooldown)
+        await self.config.guild(ctx.guild).PROVOKE_COOLDOWN_MINUTES.set(cooldown)
+        next_provoke = await self.config.guild(ctx.guild).NEXT_PROVOKE()
+        new_next = (datetime.datetime.now() + datetime.timedelta(minutes=cooldown)).timestamp()
+        if new_next < next_provoke:
+            await self.config.guild(ctx.guild).NEXT_PROVOKE.set(new_next)
         await ctx.send(f"The provoke command will now be usable every {cooldown} minutes.")
 
     @invasion.command()
