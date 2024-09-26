@@ -201,9 +201,12 @@ class Enemy():
         if self.state == ARRIVING_STATE:
             self.state = self.default_state
         else:
+            choices = {s: self.states[s].get('weight', 1) for s in 
+                self.state_dict.get('next_states', self._active_states)
+            }
             self.state = random.choices(
-                self._active_states,
-                weights=[self.states[s].get('weight', 1) for s in self._active_states]
+                choices,
+                weights=choices.values()
             )[0]
         self.hurt_mult = {}
     
