@@ -24,9 +24,10 @@ function _draw()
 	if fast then
 		spd = 3
 	end
+	a=anim-1
 	it = flr(t/spd)%anim_length
-	i = it*anim_size + anim*16*anim_size + 1
-	spr(i,0,0,2,2)
+	i = it*anim_size + a*16*anim_size + 1
+	spr(i,0,0,anim_size,anim_size)
 	t += 1
 	if it==anim_length-1 and t>0 then
 		extcmd("video")
