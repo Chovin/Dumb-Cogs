@@ -91,8 +91,12 @@ class Enemy():
         self.bombed_by = {}
 
     @property
+    def state_dict(self):
+        return self.states[self.state]
+
+    @property
     def msg(self):
-        msgs = self.states[self.state]['msg']
+        msgs = self.state_dict['msg']
         if not msgs:
             return None
         return random.choice(msgs).format(name=self.name)
@@ -107,11 +111,11 @@ class Enemy():
     
     @property
     def hurt_by(self):
-        return self.states[self.state].get('hurt_by', [])
+        return self.state_dict.get('hurt_by', [])
 
     @property
     def added_armor(self):
-        return self.states[self.state].get('added_armor', 0)
+        return self.state_dict.get('added_armor', 0)
     
     @property
     def dead(self):
@@ -127,7 +131,7 @@ class Enemy():
 
     @property
     def attacking(self):
-        return self.states[self.state].get('damage', 0)
+        return self.state_dict.get('damage', 0)
 
     @property
     def animation(self):
