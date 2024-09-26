@@ -206,8 +206,8 @@ class Enemy():
                 self.state_dict.get('next_states', self._active_states)
             }
             self.state = random.choices(
-                choices,
-                weights=choices.values()
+                [*choices],
+                weights=[*choices.values()]
             )[0]
         self.hurt_mult = {}
     
