@@ -66,11 +66,11 @@ Once it's submitted:
 Congrats! You've decided to make a contribution. That's a great first start! I'll explain in this section how you can go about requesting for that change to be made a part of the project. If you have any questions at all after reading through this section, feel free to reach out to me on Discord (Chovin). 
 
 * The first thing you should do is check to see if what you want to work on is already being made by someone by checking out the [issue list](https://github.com/Chovin/Dumb-Cogs/issues). If it is there, you could leave a comment saying you'd like to help then start a conversation about how you could.
-* If it isn't in the issue list already, go ahead and [make a new issue](https://github.com/Chovin/Dumb-Cogs/issues/new) and in detail describe what you it is you want to add/change.
+* If it isn't in the issue list already, go ahead and [make a new issue](https://github.com/Chovin/Dumb-Cogs/issues/new) and in detail describe what you it is you want to add/change. Keep note of the issue number of your created issue.
 * Once you've done that, [fork the project](https://github.com/Chovin/Dumb-Cogs/fork).
 * You can make your changes directly on GitHub. If you need to add files/folders, you can upload them by dragging and dropping them into GitHub, just make sure you put them in the correct folder. Once you've added your changes, select `Create a new branch` and name it with a descriptive name (prefix it with `feature/` or `fix/` accordingly), then click `Propose changes`.
   - <img width="430" alt="image" src="https://github.com/user-attachments/assets/e12e7a65-217c-4534-b418-e125644607e8">
-* When making a pull request (PR), make sure you're comparing it with `Chovin/Dumb-Cogs` (click `compare across forks` if you don't see a way to change it to `Chovin/Dumb-Cogs`). Make sure you add a descriptive title, a detailed description (including screenshots helps) and then click `Create pull request`.
+* When making a pull request (PR), make sure you're comparing it with `Chovin/Dumb-Cogs` (click `compare across forks` if you don't see a way to change it to `Chovin/Dumb-Cogs`). Make sure you add a descriptive title, a detailed description (including screenshots helps) with a reference to the issue number like `#2` and then click `Create pull request`.
   - <img width="639" alt="pr" src="https://github.com/user-attachments/assets/861c30e9-7735-4e87-9950-23de26a99416">
 * If you need to add files or changes to your PR, make sure you go back to your fork and switch to the branch that the PR is on before adding your files.
   - ![new files](https://github.com/user-attachments/assets/c78845db-9a3a-4d0c-8c5a-4bc824a1c9a7)
