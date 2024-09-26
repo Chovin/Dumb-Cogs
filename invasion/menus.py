@@ -21,39 +21,42 @@ class InvasionMenu(menus.Menu):
         self.bomb_dmg = bomb_dmg
         self.title_formats = {
             ARRIVING_STATE: random.choice(["A ",""]) + random.choice([
-                "{e} is approaching!",
-                "{e} is on its way!",
-                "{e} is coming!",
-                "{e} is coming right now!",
-                "{e} is here!",
-                "{e} is emerging!"
+                "{name} is approaching!",
+                "{name} is on its way!",
+                "{name} is coming!",
+                "{name} is coming right now!",
+                "{name} is here!",
+                "{name} is emerging!"
             ]),
             WIN_STATE: random.choice([
-                "{e} has been defeated!",
-                "{e} has been vanquished!",
+                "{name} has been defeated!",
+                "{name} has been vanquished!",
                 "You are victorious!",
                 "The server will live another day!"
             ]),
             LOSE_STATE: random.choice([
-                "The {e} runs rampant!",
-                "{e} decimates the server!",
+                "The {name} runs rampant!",
+                "{name} decimates the server!",
                 "You have been defeated!",
-                "{e} ravages the server's citizens!"
+                "{name} ravages the server's citizens!"
             ]),
         }
         self.default_title_formats = [
-            "{e} is {s}!",
+            "{name} is {state}!",
             "Oh, the horror!",
             "Protect the people!",
-            "Watch out! {e} is {s}!"
+            "Watch out! {name} is {state}!"
         ]
         super().__init__(timeout=invader.linger*60, check_embeds=True)
     
     @property
     def title(self):
+        tm = self.invader.title_msg
+        if tm:
+            return tm
         return self.title_formats.get(
             self.invader.state, random.choice(self.default_title_formats)
-        ).format(e=self.invader.name, s=self.invader.state)
+        ).format(name=self.invader.name, state=self.invader.state)
 
     async def send_initial_message(self, ctx, channel):
         m = ""

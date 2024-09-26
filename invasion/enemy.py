@@ -102,6 +102,13 @@ class Enemy():
         return random.choice(msgs).format(name=self.name)
     
     @property
+    def title_msg(self):
+        tm = self.state_dict.get('title_msgs')
+        if not tm:
+            return None
+        return random.choice(tm).format(name=self.name)
+    
+    @property
     def health_percentage(self):
         return self.health / self.max_health
     

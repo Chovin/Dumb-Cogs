@@ -118,6 +118,8 @@ The `stats.json` file controls everything about the monster. Let's look at an ex
             "msg": ["Get ready to defend your server!", "Example second message"], // a list of messages to choose
                 // from to display when the monster enters this state.
                 // Note that the messages are double quoted and comma separated. This field is required
+                // this field can be left as an empty list: []
+                // in which case nothing will be shown in the description
 
             "sprite": "arriving.gif", // optional name of the file that should be displayed
                 // when the monster enters this state. If sprite is not included then
@@ -140,6 +142,11 @@ The `stats.json` file controls everything about the monster. Let's look at an ex
                     // the message to have the bot replace it with the monster's name.
                     // You should use this instead of manually writing out the name
                     // since the bot will display the enraged title as well.
+            ],
+
+            "title_msgs": [ // an optional field. A list of title messages to be
+                // randomly shown once the monster enters this state.
+                "{name} melts into a liquidy blob."
             ]
         },
         "attacking": {
