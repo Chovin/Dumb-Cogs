@@ -198,11 +198,13 @@ Once you've created a `stats.json`, you need an image or gif for each state. Pla
 
 The gifs currently used were made using a combination of PICO-8 and gifsicle (the pico8 cog works perfectly for this).
 
-If you want to make similar gifs to fit the same vibe, you can either use a pixel art software like Aseprite or you can use PICO-8. Making it with PICO-8, you will need PICO-8 and gifsicle, then 
+If you want to make similar gifs to fit the same vibe, you can either use a pixel art software like Aseprite or you can use PICO-8. Making it with PICO-8, you will need PICO-8 and gifsicle installed, then 
 * alter the `jelly-sprites.p8` file in PICO-8, altering the variables in the `_init` function
 * rename the gif to `a.gif`
 * then run the `gifsicle` commands at the bottom of the `jelly-sprites.p8` file. Note you might need to adjust the `96x96` to be the size of your gif. My PICO-8 is set to have a gif_scale of 6, so 6 x 16 = 96.
 * rename `output.gif` to the state accordingly
+
+> Please include your source `.p8` or Aseprite file alongside the `stats.json` when making a PR file, so that people can easily edit your animation/image later on.
 
 <!-- omit in toc -->
 ## Attribution
