@@ -33,6 +33,7 @@ class Enemy():
         self.actions = []
         for v in self.states.values():
             self.actions += v.get('hurt_by', [])
+        self.actions = list(set(self.actions))
         self.sprites = {
             state: v.get('sprite', 
                 [s for s in os.listdir(f"{self.path}/animations") if re.match(state + r"\.[a-z]+", s)][0]
