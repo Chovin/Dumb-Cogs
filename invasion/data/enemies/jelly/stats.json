@@ -6,11 +6,11 @@
     "reward_mult": 1,
     "enrage_titles_override": null,
     "arrival_weight": 1,
-    "arrival_countdown": 1,
     "states": {
         "arriving": {
             "msg": ["Get ready to defend your server!"],
-            "sprite": "arriving.gif"
+            "sprite": "arriving.gif",
+            "countdown": 60
         },
         "dying": {
             "msg": [

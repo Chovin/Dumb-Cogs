@@ -28,7 +28,6 @@ class Enemy():
         self.reward_mult = stats['reward_mult']
         self.arrival_weight = stats['arrival_weight']
         self.states = stats['states']
-        self.arrival_countdown = stats['arrival_countdown']
         self._active_states = [k for k, v in self.states.items() if v.get('active')]
         self._hittable_states = [k for k, v in self.states.items() if v.get('hittable')]
         self.actions = []
@@ -154,6 +153,14 @@ class Enemy():
             # map value from between mn and mx (exclusive) to between pn and px (inclusive)
             math.floor((self.enraged_amt - mn) / (mx - mn) * (px - pn)) + pn
         ]
+    
+    @property
+    def countdown(self):
+        cd = self.state_dict.get('countdown', 30)
+        try:
+            return max(5, cd)
+        except:
+            return max(5, random.random()*(cd[1]-cd[0]) + cd[0])
 
     def hurt(self, player: Member, dmg_type: str, damage: int):
         if player.bot:
@@ -202,10 +209,8 @@ class Enemy():
     
     async def update(self):
         self.bombed_by = {}
-        if self.state == ARRIVING_STATE:
-            await asyncio.sleep(self.arrival_countdown*60)
-        else:
-            await asyncio.sleep(30)
+
+        await asyncio.sleep(self.countdown)
         self.linger -= .5
         if self.linger <= 0:
             self.linger = 0
