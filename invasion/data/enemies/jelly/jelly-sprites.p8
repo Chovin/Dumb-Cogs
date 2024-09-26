@@ -3,11 +3,15 @@ version 41
 __lua__
 function _init()
 	flip()
-	--anim=1
-	--fast=false
-	--anim_length=4
+	--1 is 8x8, 2 is 16x16, etc
+	anim_size=2
+	--line down the spritesheet
+	--that we're drawing
 	anim=6
+	--fast or slow animation
 	fast=true
+	--how many frames
+	--the animation has
 	anim_length=7
 end
 t=-1
@@ -21,7 +25,7 @@ function _draw()
 		spd = 3
 	end
 	it = flr(t/spd)%anim_length
-	i = it*2 + anim*32 + 1
+	i = it*anim_size + anim*16*anim_size + 1
 	spr(i,0,0,2,2)
 	t += 1
 	if it==anim_length-1 and t>0 then
