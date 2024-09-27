@@ -107,7 +107,7 @@ The `stats.json` file controls everything about the monster. Let's look at an ex
         // for example ["Angered", "Psycho""," "Legendary", "God"]
 
     "arrival_weight": 1, // the chance that this monster will spawn,
-        // For example, 1 is normal, 2 is twice as likely to spawn, .5 is half as likely
+        // For example, 1 is normal, 2 is twice as likely to spawn, 0.5 is half as likely
 
     "states": { // the states that the monster can be in.
         // These correlate to the different animations you'll see the monster has.
@@ -188,7 +188,7 @@ The `stats.json` file controls everything about the monster. Let's look at an ex
             "hittable": true,
             "weight": 1.25, // an optional field. This is the chance that this state will
                 // be chosen from the list of active states. Like arrival_weight,
-                // 1 is normal, 2 is twice as likely, and .5 is half as likely
+                // 1 is normal, 2 is twice as likely, and 0.5 is half as likely
 
             "next_state": ["crouching", "standing"], // an optional field. If this field is present,
                 // it must be a list (although the list can have only a single state in it if you wish).
