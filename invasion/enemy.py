@@ -222,7 +222,7 @@ class Enemy():
         self.bombed_by = {}
 
         await asyncio.sleep(self.countdown)
-        self.linger -= .5
+        self.linger -= self.countdown/60
         if self.linger <= 0:
             self.linger = 0
             if self.health <= 0:
