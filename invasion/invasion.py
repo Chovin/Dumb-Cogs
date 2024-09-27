@@ -153,7 +153,7 @@ class Invasion(commands.Cog):
                 return
         else:
             await ctx.send(f"{ctx.author.mention} stokes the wrath of the gods. Luckily the defenses in this channel are air-tight. No monster is able to break through")
-            return 
+            return
     
         next_provoke = datetime.datetime.fromtimestamp(await self.config.guild(ctx.guild).NEXT_PROVOKE())
         if datetime.datetime.now() < next_provoke:
@@ -161,6 +161,9 @@ class Invasion(commands.Cog):
             return
         
         cooldown = await self.config.guild(ctx.guild).PROVOKE_COOLDOWN_MINUTES()
+        if cooldown == -1:
+            await ctx.send(f"{ctx.author.mention} tries to provoke the gods, but the server admins stop it from happening; probably for the better.")
+            return
         await self.config.guild(ctx.guild).NEXT_PROVOKE.set(datetime.datetime.now().timestamp() + cooldown * 60)
         await ctx.send(f"{ctx.author.mention} stokes the wrath of the gods. A monster is in-bound!")
         self.initiate_invasion(ctx.guild, now=True)
@@ -404,17 +407,22 @@ class Invasion(commands.Cog):
 
     @invasion.command(name="provoke")
     async def _provoke(self, ctx: commands.Context, cooldown: int) -> None:
-        """Set the cooldown for using the provoke command in minutes"""
+        """Set the cooldown for using the provoke command in minutes.
+        
+        Set to -1 to disable provoking"""
 
-        if cooldown < 0:
-            await ctx.send("The cooldown must be greater than or equal to 0.")
+        if cooldown < 0 and cooldown != -1:
+            await ctx.send("The cooldown must be greater than or equal to 0 (or -1 to disable provoking)")
             return
         await self.config.guild(ctx.guild).PROVOKE_COOLDOWN_MINUTES.set(cooldown)
         next_provoke = await self.config.guild(ctx.guild).NEXT_PROVOKE()
         new_next = (datetime.datetime.now() + datetime.timedelta(minutes=cooldown)).timestamp()
         if new_next < next_provoke:
             await self.config.guild(ctx.guild).NEXT_PROVOKE.set(new_next)
-        await ctx.send(f"The provoke command will now be usable every {cooldown} minutes.")
+        if cooldown == -1:
+            await ctx.send(f"Provoking is now disabled")
+        else:
+            await ctx.send(f"The provoke command will now be usable every {cooldown} minutes.")
 
     @invasion.command()
     async def warning(self, ctx: commands.Context, minutes: int) -> None:
