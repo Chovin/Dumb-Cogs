@@ -144,7 +144,7 @@ The `stats.json` file controls everything about the monster. Let's look at an ex
                     // since the bot will display the enraged title as well.
             ],
 
-            "title_msgs": [ // an optional field. A list of title messages to be
+            "title_msg": [ // an optional field. A list of title messages to be
                 // randomly shown once the monster enters this state.
                 "{name} melts into a liquidy blob."
             ]

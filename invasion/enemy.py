@@ -103,7 +103,7 @@ class Enemy():
     
     @property
     def title_msg(self):
-        tm = self.state_dict.get('title_msgs')
+        tm = self.state_dict.get('title_msg')
         if not tm:
             return None
         return random.choice(tm).format(name=self.name)
