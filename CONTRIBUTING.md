@@ -6,6 +6,14 @@ First of all, thank you for taking the time to contribute! ❤️
 All types of contributions are encouraged and valued. See the [Table of Contents](#table-of-contents) for different ways to help and details on how. Please make sure to read the relevant section before making your contribution. It will make it a lot easier me to go through the contributions and will smooth out the experience for all involved. I look forward to you contributions! 🎉
 
 <!-- omit in toc -->
+## TL;DR
+
+1. Be nice
+2. [Make issues](https://github.com/Chovin/Dumb-Cogs/issues/new)
+3. Be descriptive in your pull requests
+4. If you want to add new monsters to Invasion, take a look at [jelly's data](https://github.com/Chovin/Dumb-Cogs/tree/main/invasion/data/enemies/jelly) as an example
+
+<!-- omit in toc -->
 ## Table of Contents
 
 - [Code of Conduct](#code-of-conduct)
