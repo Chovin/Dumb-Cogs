@@ -45,6 +45,6 @@ Want to suggest ideas or contribute changes? Please check out the [CONTRIBUTING.
 ## Credits
 
 * The wonderful [PICO-8 software](https://pico8.com/) is made by Joseph White (zep)
-* I think one of the code_cleanup function in the PICO-8 cog is comes from a derivitive of the repl command from [RoboDanny](https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/admin.py#L97-L104).
+* I think the code_cleanup function in the PICO-8 cog is comes from a derivitive of the repl command from [RoboDanny](https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/admin.py#L97-L104).
 
 Copyright (c) 2024-present Chovin
