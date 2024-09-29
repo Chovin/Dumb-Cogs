@@ -1,0 +1,122 @@
+{
+    "name": "Janken Poe",
+    "lingers": 6,
+    "health": 12,
+    "armor": 0,
+    "reward_mult": 1,
+    "enrage_titles_override": null,
+    "arrival_weight": 1,
+    "states": {
+        "arriving": {
+            "msg": [
+                "You happen upon a lantern. You feel safe only for a moment as the lantern ominously lights itself with your presence",
+                "You feel the otherworldly warmth of a {name}'s lantern that appears at your feet. stand ready.",
+                "You come across a mysterious lantern",
+                "A lantern, ethereally lit, appears before you. Prepare yourselves."
+            ],
+            "countdown": 60
+        },
+        "dying": {
+            "msg": [
+                "The {name} disappears, leaving a still warm lantern lying on the floor.",
+                "The {name} vanishes in a puff of ash and smoke; its lantern falling to the ground in sparking cinders. You can rest now.",
+                "You hear a possessed agony leave the {name}'s only attachment to the physical world, the lantern, lying on the floor, snuffed out. You can now rest easy.",
+                "As the {name} takes its last immaterial breath, you hear a cry almost like a chior of sirens. Is it finally safe?",
+                "You stab your scissors through the windows of the {name}'s lantern dealing the final blow. As the spirit leaves, you almost hear an echo of a \"*thank you*\"",
+                "You finally defeat the dreaded {name}! Here is your reward for such a valient deed."
+            ]
+        },
+        "attacking": {
+            "msg": [
+                "The ethereal lantern bursts into flames sending ghostly images of rocks, papers, and scissors throughout {guild}"
+            ],
+            "damage": 0.75
+        },
+        "idle": {
+            "msg": [
+                "The {name} floats in front of you. It doesn't look like you can hit it with anything physical in this state"
+            ],
+            "default": true,
+            "active": true,
+            "next_state": ["idle_charging", "jan"]
+        },
+        "idle_charging": {
+            "msg": [
+                "The {name} is charging an attack, watch out!"
+            ],
+            "active": true,
+            "next_state": ["jan_charging"],
+            "weight": 0.25,
+            "countdown": 7
+        },
+        "jan": {
+            "msg": [],
+            "title_msg": ["Jan"],
+            "next_state": ["ken"],
+            "countdown": 7
+        },
+        "ken": {
+            "msg": [],
+            "title_msg": ["Ken"],
+            "next_state": ["rock", "paper", "scissors"],
+            "countdown": 7
+        },
+        "jan_charging": {
+            "msg": ["The {name} is charging an attack, watch out!"],
+            "title_msg": ["JANNNN"],
+            "next_state": ["ken_charging"],
+            "countdown": 7
+        },
+        "ken_charging": {
+            "msg": ["The {name} is charging an attack, watch out!"],
+            "title_msg": ["KENNNNNN"],
+            "next_state": ["boulder", "spellbook", "knife"],
+            "countdown": 10
+        },
+        "scissors": {
+            "msg": [
+                "The {name} pulls out a pair of scissors. Quick, it looks like you can damage it at this time!"
+            ],
+            "hurt_by": ["🪨"],
+            "hittable": true
+        },
+        "rock": {
+            "msg": [
+                "The {name} pulls out a rock. Quick, it looks like you can damage it at this time!"
+            ],
+            "hurt_by": ["📜"],
+            "hittable": true
+        },
+        "paper": {
+            "msg": [
+                "The {name} pulls out a sheet of paper. Quick, it looks like you can damage it at this time!"
+            ],
+            "hurt_by": ["✂️"],
+            "hittable": true
+        },
+        "knife": {
+            "msg": [
+
+            ],
+            "hurt_by": ["🪨"],
+            "hittable": true,
+            "damage": 0.25
+        },
+        "boulder": {
+            "msg": [
+
+            ],
+            "hurt_by": ["📜"],
+            "hittable": true,
+            "damage": 0.25
+        },
+        "spellbook": {
+            "msg": [
+
+            ],
+            "hurt_by": ["✂️"],
+            "hittable": true,
+            "damage": 0.25
+        }
+    }
+}
