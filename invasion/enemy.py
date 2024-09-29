@@ -210,7 +210,7 @@ class Enemy():
             self.state = self.default_state
         else:
             choices = {s: self.states[s].get('weight', 1) for s in 
-                self.state_dict.get('next_states', self._active_states)
+                self.state_dict.get('next_state', self._active_states)
             }
             self.state = random.choices(
                 [*choices],
