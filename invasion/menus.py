@@ -51,7 +51,7 @@ class InvasionMenu(menus.Menu):
     
     @property
     def title(self):
-        tm = self.invader.title_msg
+        tm = self.invader.format_msg(self.invader.title_msg, guild=self.guild)
         if tm:
             return tm
         return self.title_formats.get(
@@ -59,6 +59,8 @@ class InvasionMenu(menus.Menu):
         ).format(name=self.invader.name, state=self.invader.state)
 
     async def send_initial_message(self, ctx, channel):
+        self.guild = channel.guild
+        self.channel = channel
         m = ""
         if self.mention_role is not None:
             m = " " +self.mention_role.mention
@@ -128,14 +130,13 @@ class InvasionMenu(menus.Menu):
         linger = math.ceil(self.invader.linger_percentage * 10)
         embed = discord.Embed(
             title=self.title,
-            description=self.invader.msg
+            description=self.invader.format_msg(self.invader.msg, guild=self.guild)
         )
-        guild = self.message and self.message.guild
         if reward:
             embed.add_field(
                 name="Rewards", 
                 value="\n".join(
-                    f"{guild.get_member(pid).mention}: {b}" 
+                    f"{self.guild.get_member(pid).mention}: {b}" 
                     for pid, b in reward.items()
                 )
             )
@@ -143,7 +144,7 @@ class InvasionMenu(menus.Menu):
             embed.add_field(
                 name="Bombs used this turn", 
                 value="\n".join(
-                    f"{guild.get_member(pid).mention}: {n} costing {self.bomb_cost * n}" 
+                    f"{self.guild.get_member(pid).mention}: {n} costing {self.bomb_cost * n}" 
                     for pid, n in bombs_used.items()
                 )
             )
@@ -151,7 +152,7 @@ class InvasionMenu(menus.Menu):
             embed.add_field(
                 name="Players affected overall" if final else "Players affected" , 
                 value="\n".join(
-                    f"{guild.get_member(pid).mention}: {b}" 
+                    f"{self.guild.get_member(pid).mention}: {b}" 
                     for pid, b in players_affected.items()
                 )
             )

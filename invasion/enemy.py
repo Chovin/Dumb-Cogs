@@ -99,14 +99,14 @@ class Enemy():
         msgs = self.state_dict['msg']
         if not msgs:
             return None
-        return random.choice(msgs).format(name=self.name)
+        return random.choice(msgs)
     
     @property
     def title_msg(self):
         tm = self.state_dict.get('title_msg')
         if not tm:
             return None
-        return random.choice(tm).format(name=self.name)
+        return random.choice(tm)
     
     @property
     def health_percentage(self):
@@ -169,6 +169,11 @@ class Enemy():
             return max(5, cd)
         except:
             return max(5, random.random()*(cd[1]-cd[0]) + cd[0])
+        
+    def format_msg(self, msg, **kwargs):
+        if msg:
+            return msg.format(name=self.name, **{k: v.name for k, v in kwargs.items()})
+        return None
 
     def hurt(self, player: Member, dmg_type: str, damage: int):
         if player.bot:
