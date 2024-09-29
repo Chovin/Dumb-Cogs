@@ -1,7 +1,7 @@
 {
     "author" : ["chovin (irdumb)"],
-    "install_msg" : "Message the user will recieve when they agree to install your repository.",
-    "name" : "Name of your repository.",
+    "install_msg" : "Oh hey! Looks like you want to try out some of my cogs. I hope you enjoy. Make sure you read the help and if you need help, let me know on Red's Cog Support [Discord server](https://discord.gg/GET4DVk)",
+    "name" : "Dumb-Cogs",
     "short" : "Various engagement, quality of life cogs and tools",
     "description" : "Various engagement, quality of life cogs and tools",
     "tags" : ["fun", "tools", "quality of life", "games"]
