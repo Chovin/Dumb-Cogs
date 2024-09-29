@@ -16,6 +16,8 @@ import numpy as np
 from PIL import Image
 from io import StringIO
 
+from .util import cleanup_code
+
 
 P8_FILE_NAME = "p8"
 
@@ -158,21 +160,6 @@ class Pico8(commands.Cog):
         if not os.path.exists(self.CONFIG_FILE):
             await self.runpico(self.INITIALIZER_P8, .5, 10, out_buffer=OutputBuffer())
             await asyncio.sleep(5)
-
-    # I think this came from danny's repl cog
-    def cleanup_code(self, content):
-        """Automatically removes code blocks from the code."""
-        # remove ```py\n```
-        if content.startswith(('```','`​`​`')) and content.endswith(('```','`​`​`')):
-            return '\n'.join(content.split('\n')[1:-1])
-
-        # remove `foo`
-        for p in ['`', '']:
-            if content.startswith(p):
-                if p == '`':
-                    return content.strip('` \n')
-                content = content[len(p):]
-                return content.strip(' \n')
 
     def _parse_code(self, code):
         gfx_found = re.search(GFX_REGEX, code)
@@ -420,7 +407,7 @@ class Pico8(commands.Cog):
             raise MissingRequiredArgument(RudimentaryParam('code'))
         
         # parse code
-        code = self.cleanup_code(code.strip())
+        code = cleanup_code(code.strip())
         setup, code, options = self._parse_code(code)
 
         # prep temp folder
