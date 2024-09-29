@@ -183,7 +183,7 @@ class InvasionGame():
             dmg = base_dmg * dmg_multiplier
 
             balance = await bank.get_balance(player)
-            dmg = min(dmg, balance)
+            dmg = int(min(dmg, balance))
 
             self.damages[-1][player.id] = self.damages[-1].get(player.id, 0) - dmg
 
