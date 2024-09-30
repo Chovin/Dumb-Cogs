@@ -35,9 +35,9 @@ class Enemy():
             self.actions += v.get('hurt_by', [])
         self.actions = list(set(self.actions))
         self.sprites = {
-            state: v.get('sprite', 
-                [s for s in os.listdir(f"{self.path}/animations") if re.match(state + r"\.[a-z]+", s)][0]
-            ) for state, v in self.states.items()
+            state: v.get('sprite') 
+                if v.get('sprite') else 
+                [s for s in os.listdir(f"{self.path}/animations") if re.match(state + r"\.[a-z]+", s)][0] for state, v in self.states.items()
         }
 
         default_states = [k for k,v in self.states.items() if v.get('default')]
