@@ -3,7 +3,7 @@
     "lingers": 6,
     "health": 12,
     "armor": 0,
-    "reward_mult": 1,
+    "reward_mult": 1.5,
     "enrage_titles_override": null,
     "arrival_weight": 1,
     "states": {
@@ -28,13 +28,19 @@
         },
         "attacking": {
             "msg": [
+                "The {name}'s lantern bursts into otherworldly energy and its blue flames scorch {guild}",
                 "The ethereal lantern bursts into flames sending ghostly images of rocks, papers, and scissors throughout {guild}"
             ],
             "damage": 0.75
         },
         "idle": {
             "msg": [
-                "The {name} floats in front of you. It doesn't look like you can hit it with anything physical in this state"
+                "It doesn't look like you can hit it with anything physical in this state"
+            ],
+            "title_msg": [
+                "The {name} floats in front of you",
+                "The {name} is barely visible in this state",
+                "The {name} appears to be preparing for something"
             ],
             "default": true,
             "active": true,
@@ -43,7 +49,13 @@
         },
         "idle_charging": {
             "msg": [
-                "The {name} is charging an attack, watch out!"
+                "Watch out!",
+                "Prepare for an attack!"
+            ],
+            "title_msg": [
+                "The {name}'s power is over 9000!",
+                "The {name} looks like it's charging an attack!",
+                "The {name} is charging an attack!"
             ],
             "active": true,
             "next_state": ["jan_charging"],
@@ -76,7 +88,12 @@
         },
         "scissors": {
             "msg": [
-                "The {name} pulls out a pair of scissors. Quick, it looks like you can damage it at this time!"
+                "Quick, it looks like you can damage it at this time!",
+                "Luckily nobody gets hurt. Use this opportunity to attack!"
+            ],
+            "title_msg": [
+                "The {name} briefly enters the physical realm",
+                "The {name} pulls out a pair of scissors"
             ],
             "hurt_by": ["🪨"],
             "hittable": true,
@@ -84,7 +101,12 @@
         },
         "rock": {
             "msg": [
-                "The {name} pulls out a rock. Quick, it looks like you can damage it at this time!"
+                "Quick, it looks like you can damage it at this time!",
+                "Luckily nobody gets hurt. Use this opportunity to attack!"
+            ],
+            "title_msg": [
+                "The {name} briefly enters the physical realm",
+                "The {name} pulls out a rock"
             ],
             "hurt_by": ["📜"],
             "hittable": true,
@@ -92,7 +114,12 @@
         },
         "paper": {
             "msg": [
-                "The {name} pulls out a sheet of paper. Quick, it looks like you can damage it at this time!"
+                "Quick, it looks like you can damage it at this time!",
+                "Luckily nobody gets hurt. Use this opportunity to attack!"
+            ],
+            "title_msg": [
+                "The {name} briefly enters the physical realm",
+                "The {name} pulls out a sheet of paper"
             ],
             "hurt_by": ["✂️"],
             "hittable": true,
@@ -100,7 +127,13 @@
         },
         "knife": {
             "msg": [
-
+                "The {name} slashes at {guild} members, but don't back down, it looks like the {name} is vulnerable to damage now!",
+                "The {name} stabs at {guild} members dealing damage. Don't worry, you can deal some damage when it's in this state as well!"
+            ],
+            "title_msg": [
+                "The {name} pulls out an ethereal knife",
+                "The {name} pulls out a vorpal blade",
+                "The {name} materializes a razor-edged blade"
             ],
             "hurt_by": ["🪨"],
             "hittable": true,
@@ -109,7 +142,12 @@
         },
         "boulder": {
             "msg": [
-
+                "The {name} crashes the boulder into {guild}. Quick, get back up and attack him in turn. He seems to be vulnerable!",
+                "The boulder smashes into pieces, shrapnel flying at {guild} members. Hurry, it's time to retaliate!"
+            ],
+            "title_msg": [
+                "The {name} materializes a huge boulder",
+                "The {name} levitates a large boulder in front of you"
             ],
             "hurt_by": ["📜"],
             "hittable": true,
@@ -118,7 +156,12 @@
         },
         "spellbook": {
             "msg": [
-
+                "The spellbook's pages flutter and runes fly into {guild} damaging members. It looks like the spellbook is a physical object that can be attacked!",
+                "The glyphs fly off the spellbook's pages and pierce into {guild} members. It looks like the {name} is vulnerable at this time."
+            ],
+            "title_msg": [
+                "The {name} manifests a flittering spellbook",
+                "A mysterious spellbook appears in the control of the {name}. Arcane energy flies"
             ],
             "hurt_by": ["✂️"],
             "hittable": true,
