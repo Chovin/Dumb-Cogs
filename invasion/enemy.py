@@ -33,7 +33,7 @@ class Enemy():
         self.actions = []
         for v in self.states.values():
             self.actions += v.get('hurt_by', [])
-        self.actions = list(set(self.actions))
+        self.actions = list({k: True for k in self.actions})
         self.sprites = {
             state: v.get('sprite') 
                 if v.get('sprite') else 
