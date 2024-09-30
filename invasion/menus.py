@@ -78,6 +78,8 @@ class InvasionMenu(menus.Menu):
     async def start(self, ctx):
         # manually send initial message so we can get around having a menu
         # with no emojis stopping before we can add emojis
+        self.ctx = ctx
+        await ctx.load_prefix()
         self.message = await self.send_initial_message(ctx, ctx.channel)
         def button_handler(button):
             async def handler(self: InvasionMenu, payload: discord.Reaction):
@@ -118,6 +120,9 @@ class InvasionMenu(menus.Menu):
         kwargs = {}
         if msg:
             kwargs = {'content': msg}
+
+        if not self.ctx.prefix_loaded:
+            await self.ctx.load_prefix()
 
         await self.message.edit(
             **kwargs,
@@ -173,6 +178,6 @@ class InvasionMenu(menus.Menu):
             inline=False
         )
         embed.set_image(url=f"attachment://{self.invader.state}.gif")
-        embed.set_footer(text=f"[p]help Invasion")
+        embed.set_footer(text=f"{self.ctx.prefix}help Invasion")
         return embed
     

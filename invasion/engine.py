@@ -135,6 +135,15 @@ class MockContext:
         self.channel = channel
         self.bot = bot
         self.author = self.guild.me
+        self.prefix = '[p]'
+        self.prefix_loaded = False
+    
+    async def load_prefix(self):
+        try:
+            self.prefix = (await self.bot.get_prefix(self.channel.last_message))[0]
+            self.prefix_loaded = True
+        except:
+            self.prefix = '[p]'
         
     
 class InvasionGame():
