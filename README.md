@@ -1,6 +1,6 @@
 # Dumb-Cogs
 
-Various cogs of various uses and themes. Some may be more opinionated and specialized than others.
+Various cogs (modules) of various uses and themes for the [Red-DiscordBot](https://github.com/Cog-Creators/Red-DiscordBot) project. Some may be more opinionated and specialized than others.
 
 ## Installation
 
