@@ -1,0 +1,49 @@
+{
+    "name": "MonsterName",
+    "health": 10,
+    "states": {
+        "arriving": {
+            "animation": "default_arrival_animation",
+            "sound": "default_arrival_sound"
+        },
+        "idle": {
+            "armor": 0,
+            "attack": 5,
+            "defense": 2,
+            "speed": 3,
+            "abilities": [
+                "basic_attack",
+                "charge"
+            ]
+        },
+        "dying_state": "default_dying_animation"
+    },
+    "phases": {
+        "1.0": {
+            "arriving": {
+                "animation": "arrival_phase1_animation",
+                "sound": "arrival_phase1_sound"
+            },
+            "idle": {}
+        },
+        "0.5": {
+            "arriving": {
+                "animation": "arrival_phase2_animation",
+                "sound": "arrival_phase2_sound"
+            },
+            "idle": {
+                "added_armor": 0.25
+            }
+        },
+        "0.25": {
+            "arriving": {
+                "animation": "arrival_phase3_animation",
+                "sound": "arrival_phase3_sound"
+            },
+            "idle": {
+                "attack": 10,
+                "added_armor": 0.5
+            }
+        }
+    }
+}
