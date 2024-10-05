@@ -213,12 +213,27 @@ class HammerTime(commands.Cog):
             return view.value
         
 
+    async def get_timezone_for(self, user: discord.User):
+        tz = await self.config.user(user).TIMEZONE()
+        if tz is None:
+            found = 0
+            for role_id, conf in (await self.config.all_roles()).items():
+                if user.get_role(role_id):
+                    tz = conf['TIMEZONE']
+                    found += 1
+                if found > 1:
+                    raise AmbiguousTimeZoneError
+            if found == 0:
+                raise NoTimeZoneError
+        return tz
+
+
     async def on_message(self, message):
         pass
 
     
     @commands.command(aliases=["ht"])
-    async def hammertime(self, ctx, user_or_time: UserOrStringConverter = None, *, time = ''):
+    async def hammertime(self, ctx, user_or_time: UserOrStringConverter = None, *, time = 'now'):
         """Use this command followed by a date/time phrase to convert it to hammertime! 
         (a discord time format that shows correctly for everyone that sees it)
 
@@ -233,28 +248,20 @@ class HammerTime(commands.Cog):
 
         user = ctx.author
 
-        if user_or_time is None:
-            time = 'now'
-        else:
-            if isinstance(user_or_time, str):
-                time = f"{user_or_time} {time}"
-            else:
-                user = user_or_time
+        if isinstance(user_or_time, str):
+            time = f"{user_or_time} {time}"
+        elif user_or_time is not None:
+            user = user_or_time
             
-        tz = await self.config.user(user).TIMEZONE()
-        if tz is None:
-            found = 0
-            for role_id, conf in (await self.config.all_roles()).items():
-                if user.get_role(role_id):
-                    tz = conf['TIMEZONE']
-                    found += 1
-            pre = "You have" if user == ctx.author else f"{user.mention} has"
-            if found == 0:
-                await ctx.send(f"{pre} no timezone set. Use `{ctx.prefix}hammertimeset tz <timezone>` to set your timezone.")
-                return
-            if found > 1:
-                await ctx.send(f"{pre} multiple timezone roles. Use `{ctx.prefix}hammertimeset tz <timezone>` to set your timezone.")
-                return
+        pre = "You have" if user == ctx.author else f"{user.mention} has"
+        try:
+            tz = await self.get_timezone_for(user)
+        except NoTimeZoneError:
+            await ctx.send(f"{pre} no timezone set. Use `{ctx.prefix}hammertimeset tz <timezone>` to set your timezone.")
+            return 
+        except AmbiguousTimeZoneError:
+            await ctx.send(f"{pre} multiple timezone roles. Use `{ctx.prefix}hammertimeset tz <timezone>` to set your timezone.")
+            return
 
         try:
             dt = parse_dt_or_delta(time, tz)
