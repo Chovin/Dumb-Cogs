@@ -16,6 +16,7 @@ import re
 
 
 RE_RELATIVE_TIME = re.compile(r"(?P<amt>\d+|an?) ?(?P<period>(y(ea)?rs?)|(months?)|(weeks?)|(days?)|(h(ou)?rs?)|(min(ute)?s?)|(sec(ond)?s?))(?P<past> ago)?")
+RE_AT_IN = re.compile(r"(\s|^)(at|in)\s\d")
 TIMEOUT = "TIMEOUT"
 
 
@@ -92,7 +93,7 @@ def strftimeth(dt, fmt):
     return dt.strftime(fmt.format(th=th(dt.day)))
 
 
-def parse_dt_or_delta(txt: str, tz_str: str):
+def parse_datetime(txt: str, tz_str: str):
     txt = txt.lower().strip()
 
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -105,12 +106,19 @@ def parse_dt_or_delta(txt: str, tz_str: str):
 
     tz = gettz(tz_str)
     tz_str = "ZONE"
+    return dateutil.parser.parse(f"{txt} {tz_str}", fuzzy=True, tzinfos={tz_str: tz})
+
+
+def parse_delta(txt: str, tz_str: str):
+    txt = txt.lower().strip()
+
+    tz = gettz(tz_str)
 
     if txt == 'now':
         return datetime.now(tz=tz)
 
     if not re.search(RE_RELATIVE_TIME, txt):
-        return dateutil.parser.parse(f"{txt} {tz_str}", fuzzy=True, tzinfos={tz_str: tz})
+        raise ParserError
     
     now = datetime.now(tz)
     for match in re.finditer(RE_RELATIVE_TIME, txt):
@@ -120,7 +128,7 @@ def parse_dt_or_delta(txt: str, tz_str: str):
         past = match.group('past')
         try:
             amt = int(amt)
-        except:
+        except ValueError:
             amt = 1
 
         periods = {
@@ -135,6 +143,14 @@ def parse_dt_or_delta(txt: str, tz_str: str):
         now += timedelta(**{period: amt})
 
     return now
+
+
+class AmbiguousTimeZoneError(Exception):
+    pass
+
+
+class NoTimeZoneError(Exception):
+    pass
 
 
 class HammerTime(commands.Cog):
@@ -165,7 +181,7 @@ class HammerTime(commands.Cog):
         })
 
         self.config.register_guild(**{
-            "AUTO_tIME": False,
+            "AUTO_TIME": False,
         })
 
         self.tz_map = self.make_timezone_map()
@@ -228,8 +244,42 @@ class HammerTime(commands.Cog):
         return tz
 
 
+    @commands.Cog.listener()
     async def on_message(self, message):
-        pass
+        if message.author == self.bot.user:
+            return
+        
+        if not await self.config.guild(message.guild).AUTO_TIME():
+            return
+
+        ps = await self.bot.get_prefix(message)
+        if message.content.startswith(
+            tuple(f"{p}{cmd}" for p in ps 
+                for cmd in ['hammertime', 'ht']
+            )
+        ):
+            return
+        
+        try:
+            tz = await self.get_timezone_for(message.author)
+        except (AmbiguousTimeZoneError, NoTimeZoneError):
+            return
+
+        if not re.search(RE_AT_IN, message.content):
+            return
+        
+        try:
+            dt = parse_delta(message.content, tz)
+        except ParserError:
+            try:
+                dt = parse_datetime(message.content, tz)
+            except ParserError:
+                return
+        
+        ts = int(dt.timestamp())
+        await message.reply(f"-# <t:{ts}:F> (<t:{ts}:R>)", mention_author=False)
+
+
 
     
     @commands.command(aliases=["ht"])
@@ -264,10 +314,12 @@ class HammerTime(commands.Cog):
             return
 
         try:
-            dt = parse_dt_or_delta(time, tz)
+            dt = parse_delta(time, tz)
         except ParserError:
-            await ctx.send("I couldn't understand that")
-            return
+            try:
+                dt = parse_datetime(time, tz)
+            except ParserError:
+                await ctx.send("I couldn't understand that")
         
         ts = int(dt.timestamp())
         users_time = strftimeth(dt, "%A, %b %-d{th} at %-I:%M %p")
@@ -334,15 +386,15 @@ class HammerTime(commands.Cog):
 
     
     @commands.admin()
-    @hammertimeset.command(hidden=True)
+    @hammertimeset.command()
     async def auto(self, ctx, toggle: bool = None):
-        """Toggle automatically converting times in messages"""
+        """Toggle automatically converting times in messages if they have the word at/in in them"""
         current = await self.config.guild(ctx.guild).AUTO_TIME()
         if toggle is None:
             toggle = not current
         await self.config.guild(ctx.guild).AUTO_TIME.set(toggle)
         if toggle:
-            await ctx.reply("Absolute time auto-converting is now on.")
+            await ctx.reply("Time auto-converting is now on.")
         else:
-            await ctx.reply("Absolute time auto-converting is now off.")
+            await ctx.reply("Time auto-converting is now off.")
 
