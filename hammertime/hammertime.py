@@ -115,7 +115,7 @@ def parse_delta(txt: str, tz_str: str):
     tz = gettz(tz_str)
 
     if txt == 'now':
-        return datetime.now(tz=tz)
+        return datetime.now(tz)
 
     if not re.search(RE_RELATIVE_TIME, txt):
         raise ParserError
