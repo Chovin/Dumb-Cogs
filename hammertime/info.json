@@ -1,0 +1,26 @@
+{
+    "$schema": "https://raw.githubusercontent.com/Cog-Creators/Red-DiscordBot/V3/develop/schema/red_cog.schema.json",
+    "name": "HammerTime",
+    "short": "Talk about time easier across timezones",
+    "description": "A command for making it easier to talk about times across your members' various timezones. Inspired by the tool of the same name: https://hammertime.cyou/",
+    "end_user_data_statement": "This cog stores timezone information for the user.",
+    "install_msg": "Thanks for installing this HammerTime! Check out the `[p]help HammerTime` for more information.",
+    "author": [
+        "chovin (irdumb)"
+    ],
+    "required_cogs": {},
+    "requirements": [
+        "pytz"
+    ],
+    "tags": [
+        "time",
+        "date",
+        "tool",
+        "quality of life",
+        "timezone"
+    ],
+    "min_bot_version": "3.5.0",
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}
