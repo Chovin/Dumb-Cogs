@@ -17,6 +17,7 @@ import re
 
 RE_RELATIVE_TIME = re.compile(r"(?P<amt>\d+|an?) ?(?P<period>(y(ea)?rs?)|(months?)|(weeks?)|(days?)|(h(ou)?rs?)|(min(ute)?s?)|(sec(ond)?s?))(?P<past> ago)?")
 RE_AT_IN = re.compile(r"(\s|^)(at|in)\s\d")
+RE_AT = re.compile(r"(\s|^)(at\s(?P<time>\d{1,2}:?\d{0,2})\s?(?P<ampm>am|pm)?(\W|$))")
 TIMEOUT = "TIMEOUT"
 
 
@@ -121,11 +122,11 @@ def parse_delta(txt: str, tz_str: str):
         raise ParserError
     
     now = datetime.now(tz)
-    for match in re.finditer(RE_RELATIVE_TIME, txt):
+    for m in re.finditer(RE_RELATIVE_TIME, txt):
 
-        amt = match.group('amt')
-        period = match.group('period')
-        past = match.group('past')
+        amt = m.group('amt')
+        period = m.group('period')
+        past = m.group('past')
         try:
             amt = int(amt)
         except ValueError:
@@ -261,18 +262,42 @@ class HammerTime(commands.Cog):
             return
         
         try:
-            tz = await self.get_timezone_for(message.author)
+            tz_str = await self.get_timezone_for(message.author)
         except (AmbiguousTimeZoneError, NoTimeZoneError):
             return
 
-        if not re.search(RE_AT_IN, message.content):
+        content = message.content.lower()
+
+        if not re.search(RE_AT_IN, content):
             return
         
         try:
-            dt = parse_delta(message.content, tz)
+            dt = parse_delta(content, tz_str)
         except ParserError:
+            found = 0
+            for m in re.finditer(RE_AT, content):
+                found += 1
+                if found > 1:
+                    return
+            if not m.group("ampm"):
+                tz = gettz(tz_str)
+                now = datetime.now(tz)
+                hour = m.group("time")
+                time = hour
+                if ':' in hour:
+                    hour = hour.split(':')[0]
+                hour = int(hour)
+                ampm = "pm"
+                if hour <= 12:
+                    ampm = now.strftime("%p")
+                    if hour < int(now.strftime("%I")):
+                        ampm = {"am": "pm", "pm": "am"}[ampm.lower()]
+                
+                content = content.replace(time, f"{time} {ampm}")
+                print(content)
+
             try:
-                dt = parse_datetime(message.content, tz)
+                dt = parse_datetime(content, tz_str)
             except ParserError:
                 return
         
