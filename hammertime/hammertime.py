@@ -115,7 +115,7 @@ def parse_delta(txt: str, tz_str: str):
 
     tz = gettz(tz_str)
 
-    if txt == 'now':
+    if 'not now' not in txt and 'now' in txt.split(' '):
         return datetime.now(tz)
 
     if not re.search(RE_RELATIVE_TIME, txt):
@@ -308,7 +308,7 @@ class HammerTime(commands.Cog):
 
     
     @commands.command(aliases=["ht"])
-    async def hammertime(self, ctx, user_or_time: UserOrStringConverter = None, *, time = 'now'):
+    async def hammertime(self, ctx, user_or_time: UserOrStringConverter = None, *, time = ''):
         """Use this command followed by a date/time phrase to convert it to hammertime! 
         (a discord time format that shows correctly for everyone that sees it)
 
@@ -327,6 +327,8 @@ class HammerTime(commands.Cog):
             time = f"{user_or_time} {time}"
         elif user_or_time is not None:
             user = user_or_time
+
+        time = time or 'now'
             
         pre = "You have" if user == ctx.author else f"{user.mention} has"
         try:
