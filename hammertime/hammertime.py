@@ -347,6 +347,7 @@ class HammerTime(commands.Cog):
                 dt = parse_datetime(time, tz)
             except ParserError:
                 await ctx.send("I couldn't understand that")
+                return
         
         ts = int(dt.timestamp())
         users_time = strftimeth(dt, "%A, %b %-d{th} at %-I:%M %p")
