@@ -10,7 +10,9 @@
     ],
     "required_cogs": {},
     "requirements": [
-        "Pillow"
+        "Pillow",
+        "git+https://github.com/Chovin/pyfoo.git",
+        "tldextract"
     ],
     "tags": [
         "wufoo",
