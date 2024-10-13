@@ -283,7 +283,6 @@ class GenesisApps(commands.Cog):
 
     def set_application_for(self, member, app):
         self.applications.setdefault(member.guild.id, {})[member.id] = app
-        print(f"applications: {self.applications}")
 
     def _set_nicknames_for(self, member, nicknames):
         for nick in nicknames:
