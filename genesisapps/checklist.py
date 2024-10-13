@@ -15,12 +15,12 @@ class ChecklistItem:
             self.type = self.ROLE
             self.value = role_or_text.id
             self.role = role_or_text
-            self.done = done
         else:
             self.type = self.TEXT
             self.value = role_or_text
             self.role = None
-            self.done = done
+        
+        self.done = done
 
     @classmethod
     def new(cls, guild: discord.Guild, *, type: str, value: Union[str, int], done: bool = False):
@@ -84,6 +84,10 @@ class Checklist:
 
     def __repr__(self):
         return f"Checklist({self.member}, {self.guild}, {[ci for ci in self._checklist_items]})"
+
+    async def is_done(self):
+        items = await self.checklist_items()
+        return all(i.done for i in items)
 
     async def get_item(self, index: int):
         return (await self.checklist_items())[index]

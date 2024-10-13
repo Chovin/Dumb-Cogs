@@ -109,7 +109,7 @@ class Application:
         if await mconf.THREAD_ID() is None:
             cl = await Checklist.new_from_template(
                 await self.config.guild(self.guild).CHECKLIST_TEMPLATE(),
-                mconf.CHECKLIST, self.bot, self.guild, self.member
+                mconf.CHECKLIST, self.bot, self.guild, self.member, self
             )
         else:
             cl = await Checklist.new(mconf.CHECKLIST, self.bot, self.guild, self.member, self)
@@ -341,9 +341,9 @@ class GenesisApps(commands.Cog):
 
     @commands.Cog.listener()
     async def on_gapps_checklist_update(self, checklist: Checklist):
-        # check if all checklist items are done
-        # if done send alert mentioning role
-        # display
+        await checklist.app.display()
+        if await checklist.is_done():
+            await checklist.app.close()
         pass
 
     @commands.Cog.listener()
