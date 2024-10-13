@@ -46,7 +46,7 @@ class Wufoo:
             raise DiscordNameFieldNotFound(f"Could not find {self.discord_name_field_title} in {self.form_url}")
     
     async def get_entries(self):
-        await [Entry(self, entry) for entry in await self.form.get_entries()]
+        await [Entry(self.form, entry) for entry in await self.form.get_entries()]
 
 
 class Entry:
