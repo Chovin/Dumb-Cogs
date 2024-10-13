@@ -8,6 +8,7 @@ import re
 import asyncio
 
 from .wufoo import Wufoo, FormNotFound, DiscordNameFieldNotFound, MemberNotFound
+from .checklist import Checklist, ChecklistItem
 
 
 RE_API_KEY = re.compile(r"^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$")
@@ -28,15 +29,16 @@ class GenesisApps(commands.Cog):
             "THREAD_ID": None,
             "DISPLAY_MESSAGE_ID": None,
             "STATUS_UPDATES": [],
-            "IMAGES": [],
-            "NICKNAMES": {}
+            "CHECKLIST": {}
         })
 
         self.config.register_guild(**{
             "TRACKING_CHANNEL": None,
             "WUFOO_API_KEY": None,
             "WUFOO_FORM_URL": None,
-            "WUFOO_DISCORD_USERNAME_FIELD": None
+            "WUFOO_DISCORD_USERNAME_FIELD": None,
+            "CHECKLIST_TEMPLATE": {},
+            "CHECKLIST_ROLES": {}  # roles that are allowed to toggle the checklist items
         })
 
         self.wufoo_apis = {}
@@ -74,10 +76,11 @@ class GenesisApps(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        # if thread doesn't exist, 
-        #   create it
-        # add new joined_ats
-        # post display message
+    @commands.Cog.listener()
+    async def on_gapps_checklist_update(self, checklist: Checklist):
+        # check if all checklist items are done
+        # if done send alert mentioning role
+        # display
         pass
 
     @commands.Cog.listener()
@@ -99,6 +102,38 @@ class GenesisApps(commands.Cog):
             return
         await self.config.guild(ctx.guild).TRACKING_CHANNEL.set(channel.id)
         await ctx.send(f"Tracking forum is set to {channel.mention}")
+
+    @genesisapps.command()
+    async def checklist(self, ctx: commands.Context) -> None:
+        """View the application checklist"""
+        await ctx.send(await Checklist(self.config.guild(ctx.guild).CHECKLIST_TEMPLATE, self.bot, ctx.guild).to_str())
+
+    @genesisapps.command()
+    async def checklistadd(self, ctx: commands.Context, *, role_or_txt: RoleOrStringConverter) -> None:
+        """Add an item to the application checklist
+        
+        You can add a role by itself as well and the checklist item 
+        will be marked off once the member has acquired that role. 
+        Regular text checklist items must be marked off manually
+
+        If the first word of the task is "Used" or "Contains", 
+        the task will be marked off if the application contains that word
+
+        If the task is "Application Sent", it will be marked off 
+        when the member sends a Wufoo applicaiotn
+        """
+
+        cl = Checklist(self.config.guild(ctx.guild).CHECKLIST_TEMPLATE, self.bot, ctx.guild)
+        await cl.add_item(ChecklistItem(role_or_txt))
+        await ctx.send(f"Added checklist item. Checklist is now:\n {await cl.to_str()}")
+
+    @genesisapps.command(aliases=['checklistrem', 'checklistdel', 'checklistdelete'])
+    async def checklistremove(self, ctx: commands.Context, number: int) -> None:
+        """Remove an item from the application checklist"""
+        
+        cl = Checklist(self.config.guild(ctx.guild).CHECKLIST_TEMPLATE, self.bot, ctx.guild)
+        await cl.remove_item(await cl.get_item(number - 1))
+        await ctx.send(f"Removed checklist item. Checklist is now:\n {await cl.to_str()}")
 
     @genesisapps.command()
     async def wufoo(self, ctx: commands.Context, form_url: str) -> None:
