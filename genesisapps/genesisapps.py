@@ -218,6 +218,10 @@ class GenesisApps(commands.Cog):
             "WUFOO_FORM_URL": None,
             "WUFOO_DISCORD_USERNAME_FIELD": None,
             "CHECKLIST_TEMPLATE": {},
+            "MENTION_ROLE": None,
+            "DAYS_NO_MESSAGE_ALARM": None,
+            "DAYS_NO_CHECKLIST_ALARM": None,
+            "DAYS_SINCE_JOIN_ALARM": None,
             "APP_MEMBERS": {}
         })
 
@@ -542,6 +546,23 @@ class GenesisApps(commands.Cog):
         cl = Checklist(self.config.guild(ctx.guild).CHECKLIST_TEMPLATE, self.bot, ctx.guild)
         await cl.remove_item(await cl.get_item(number - 1))
         await ctx.send(f"Removed checklist item. Checklist is now:\n {await cl.to_str()}")
+
+    @genesisapps.command()
+    async def mentionrole(self, ctx: commands.Context, role_or_everyone: discord.Role = None) -> None:
+        """Set the role to mention for application alarms
+        
+        When used without a role, no role will be mentioned
+        """
+
+        if role_or_everyone is None:
+            await self.config.guild(ctx.guild).MENTION_ROLE.set(None)
+            await ctx.send("Mention role has been unset")
+            return
+        await self.config.guild(ctx.guild).MENTION_ROLE.set(role_or_everyone.id)
+        mention = role_or_everyone.mention
+        if role_or_everyone.id == ctx.guild.default_role.id:
+            mention = "@everyone"
+        await ctx.send(f"Mention role is set to {mention}")
 
     @genesisapps.command()
     async def wufoo(self, ctx: commands.Context, form_url: str) -> None:
