@@ -62,6 +62,12 @@ class Entry:
         if member is None:
             raise MemberNotFound(f"Could not find {username} in {guild.name}")
         return member
+
+    def __str__(self):
+        s = f"## {self.form.Name}\n"
+        for k, v in self._dict.items():
+            s += f"**{v['question']}**\n{v['answer']}\n\n"
+        return s
     
     def __getitem__(self, key):
         return self._dict[key]
