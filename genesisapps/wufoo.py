@@ -65,8 +65,10 @@ class Entry:
 
     def __str__(self):
         s = f"## {self.form.Name}\n"
+        i = 1
         for k, v in self._dict.items():
-            s += f"**{v['question']}**\n{v['answer']}\n\n"
+            s += f"**{i}. {v['question']}**\n{v['answer']}\n\n"
+            i += 1
         return s
     
     def __getitem__(self, key):
