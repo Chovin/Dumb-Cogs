@@ -203,12 +203,17 @@ class GenesisApps(commands.Cog):
             "DISPLAY_MESSAGE_ID": None,
             "LOG_MESSAGE_ID": None,
             "STATUS_UPDATES": [],
+            "IMAGE_MESSAGE_URLS": [],
+            "IMAGES": [],
+            "NICKNAMES": [],
             "CHECKLIST": {},
-            "LEFT_AT": None
+            "LEFT_AT": None,
+            "FIRST_MESSAGE_LINK": None
         })
 
         self.config.register_guild(**{
             "TRACKING_CHANNEL": None,
+            "PEER_REVIEW_CHANNEL": None,
             "WUFOO_API_KEY": None,
             "WUFOO_FORM_URL": None,
             "WUFOO_DISCORD_USERNAME_FIELD": None,
@@ -219,6 +224,7 @@ class GenesisApps(commands.Cog):
         self.wufoo_apis = {}
         self.applications = {}
         self.thread_member_map = {}
+        self.nickname_map = {}
         self.ready = False
 
     def get_member(self, guild: discord.Guild, member_id: int):
@@ -264,16 +270,31 @@ class GenesisApps(commands.Cog):
             for mid, conf in mconf.items():
                 m = self.get_member(guild, mid)
                 self.thread_member_map[conf["THREAD_ID"]] = m
+        
+    async def setup_nickname_map(self):
+        gmconf = await self.config.all_members()
+        for gid, mconf in gmconf.items():
+            guild = self.bot.get_guild(gid)
+            self.nickname_map[gid] = {}
+            for mid, conf in mconf.items():
+                member = self.get_member(guild, mid)
+                for nick in conf['NICKNAMES']:
+                    self.nickname_map[gid][nick] = member
 
     def set_application_for(self, member, app):
         self.applications.setdefault(member.guild.id, {})[member.id] = app
         print(f"applications: {self.applications}")
+
+    def _set_nicknames_for(self, member, nicknames):
+        for nick in nicknames:
+            self.nickname_map.setdefault(member.guild.id, {})[nick] = member
 
     async def _setup(self):
         if not self.ready:
             await self.setup_applications()
             await self.setup_all_wufoo()
             await self.setup_thread_member_map()
+            await self.setup_nickname_map()
         self.ready = True
 
     @commands.Cog.listener()
@@ -323,8 +344,80 @@ class GenesisApps(commands.Cog):
         pass
 
     @commands.Cog.listener()
+    async def on_gapps_app_closed(self, app):
+        for nick, member in self.nickname_map[app.member.guild.id].items():
+            # compare ids cause MissingMember != Member atm maybe change that later :eyes:
+            if member.id == app.member.id:
+                del self.nickname_map[app.member.guild.id][nick]
+    
+    @commands.Cog.listener()
+    async def on_gapps_app_opened(self, app):
+        nm = self.nickname_map.setdefault(app.member.guild.id, {})
+        for nick in await self.config.member(app.member).NICKNAMES():
+            nm[nick] = app.member
+
+    @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        pass
+        if message.author.bot:
+            return
+
+        if not await self.config.guild(message.guild).TRACKING_CHANNEL():
+            return
+
+        members_to_check_for = [app.member for app in self.applications.get(message.guild.id, {}).values() if not app.closed]
+        check_for_id_map = {m.id: m for m in members_to_check_for}
+
+        # if in peer_review channel, check for mentions
+        if message.channel.id == await self.config.guild(message.guild).PEER_REVIEW_CHANNEL():
+            mentions_map = {m.id: m for m in members_to_check_for}
+            if message.mentions:
+                members = set([m for m in message.mentions if m.id in mentions_map])
+            else:
+                members = set()
+
+            name_map = {m.name.lower(): m for m in members_to_check_for}
+            disp_map = {m.display_name.lower(): m for m in members_to_check_for}
+            nick_map = {nick.lower(): mem for nick, mem in self.nickname_map[message.guild.id].items() if mem in members_to_check_for}
+            the_map = {**nick_map, **name_map, **disp_map}
+
+            sr = r"(^|\W)" + "(?P<find>"
+            er = ")" + r"($|\W)"
+            pattern = sr + "|".join(list(name_map) + list(disp_map) + list(nick_map)) + er
+            
+            for m in re.finditer(pattern, message.content.lower()):
+                members.add(the_map[m.group('find')])
+            
+            for m in members:
+                app = self.application_for(m)
+                await app.thread.send(f"{message.author.mention}: {message.content}\n-# {message.jump_url}")
+
+        # else check if applicant
+        elif message.author.id in check_for_id_map:
+            mconf = self.config.member(message.author)
+            
+            # increment message counter
+            n = await mconf.MESSAGES()
+            await mconf.MESSAGES.set(n + 1)
+            if n == 0:
+                await mconf.FIRST_MESSAGE_LINK.set(message.jump_url)
+            
+            # resend images
+            if (atts := [m for m in message.attachments if m.content_type.startswith("image")]):
+                app = self.application_for(message.author)
+                img_messages = await mconf.IMAGE_MESSAGE_URLS()
+                image_li = await mconf.IMAGES()
+                images_per_msg = 5
+                for imgs in [atts[i:i + images_per_msg] for i in range(0, len(atts), images_per_msg)]:
+                    urls = [i.proxy_url for i in imgs]
+
+                    img_str = ", ".join(f"[{i + 1 + len(image_li)}]({url})" for i, url in enumerate(urls))
+                    msg = await app.thread.send(f"[images {len(img_messages) + 1}]\n* {message.jump_url} {img_str}")
+                    img_messages.append(msg.jump_url)
+                    image_li += urls
+                await mconf.IMAGE_MESSAGE_URLS.set(img_messages)
+                await mconf.IMAGES.set(image_li)
+
+            await mconf.UPDATE.set(True)
 
     @commands.group(aliases=["gapps"])
     @checks.admin_or_permissions(manage_guild=True)
@@ -362,6 +455,36 @@ class GenesisApps(commands.Cog):
         except NotFound:
             pass
     
+    @genesisapps.command(aliases=["nickname"])
+    async def nick(self, ctx: commands.Context, member: discord.Member, *nicknames: str) -> None:
+        """Set nicknames for a user
+        
+        When users use one of these nicknames in 
+        """
+        try:
+            app = self.application_for(member)
+        except:
+            await ctx.send(f"There is no application for {member.mention}")
+            return
+        
+        oldnicks = await self.config.member(member).NICKNAMES()
+        await self.config.member(member).NICKNAMES.set(nicknames)
+
+        if not app.closed:
+            self._set_nicknames_for(member, nicknames)
+        
+        def fmt_nicks(nicks):
+            return ', '.join(nicks)
+
+        if oldnicks:
+            await ctx.send(
+                f"Nicknames for {member.mention} have been changed from\n"
+                f"{', '.join(oldnicks)}\nto\n{', '.join(nicknames)}"
+            )
+        else:
+            await ctx.send(f"Nicknames for {member.mention} have been set to {', '.join(nicknames)}")
+
+
     @genesisapps.command()
     async def trackforum(self, ctx: commands.Context, channel: discord.ForumChannel = None) -> None:
         """Set the forum channel to create applicant tracking threads in"""
@@ -372,6 +495,22 @@ class GenesisApps(commands.Cog):
             return
         await self.config.guild(ctx.guild).TRACKING_CHANNEL.set(channel.id)
         await ctx.send(f"Tracking forum is set to {channel.mention}")
+
+    @genesisapps.command()
+    async def peerchannel(self, ctx: commands.Context, channel: discord.TextChannel = None) -> None:
+        """Set the peer review channel to listen to.
+        
+        Messages that mention the application user 
+        (by mention, name, nickname, or `[p]gapps nick` nicknames)
+        get posted in the tracking channel
+        """
+        
+        if channel is None:
+            await self.config.guild(ctx.guild).PEER_REVIEW_CHANNEL.set(None)
+            await ctx.send("Peer Review channel has been unset")
+            return
+        await self.config.guild(ctx.guild).PEER_REVIEW_CHANNEL.set(channel.id)
+        await ctx.send(f"Peer Review channel is set to {channel.mention}")
 
     @genesisapps.command()
     async def checklist(self, ctx: commands.Context) -> None:
