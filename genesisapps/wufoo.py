@@ -26,7 +26,7 @@ class Wufoo:
     async def setup(self):
         forms = await self.api.forms()
         for form in forms:
-            if form.get_link_url() == self.form_url:
+            if form.get_link_url().replace('http://', 'https://') == self.form_url.replace('http://', 'https://'):
                 self.form = form
                 break
         if not hasattr(self, "form"):
