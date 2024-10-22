@@ -35,6 +35,11 @@ class ChecklistItem:
             return f"{ds} {self.role.mention} acquired"
         except AttributeError:
             return f"{ds} {self.value}"
+    
+    def clean_str(self):
+        if self.role:
+            return f"@{self.role.name} acquired"
+        return self.value
 
     def __repr__(self):
         return f"ChecklistItem({self.type}: {self.value}, done: {self.done})"
@@ -56,25 +61,38 @@ class Checklist:
         self.guild = guild
         self.config = config_group
         self._update = True
+        self._initial_update = True
         self.bot = bot
         self.app = app
 
-    async def refresh_items(self):
-        await self.checklist_items()
+    async def refresh_items(self, force=False, dispatch=True):
+        if force:
+            self._update = True
+        await self.checklist_items(dispatch)
 
-    async def checklist_items(self):
+    async def checklist_items(self, dispatch=True):
         if self._update:
-            self._checklist_items = [
+            new_items = [
                 ChecklistItem.new(self.guild, **ci) 
                 for ci in (await self.config()).values()
-            ]
+            ] 
+            self.previous_items = getattr(self, '_checklist_items', new_items)   
+            self._checklist_items = new_items
             self._checklist_dict = {
                 ci.value: ci for ci in self._checklist_items
             }
             self._update = False
-            if self.member:
+            if self.member and not self._initial_update and dispatch:
                 self.bot.dispatch("gapps_checklist_update", self)
+        self._initial_update = False
         return self._checklist_items
+
+    @property
+    def changed_items(self):
+        return [
+            cci for pci, cci in zip(self.previous_items, self._checklist_items) 
+            if str(pci) != str(cci)
+        ]
 
     async def to_str(self):
         return "\n".join(
@@ -88,13 +106,17 @@ class Checklist:
     async def is_done(self):
         items = await self.checklist_items()
         return all(i.done for i in items)
+    
+    async def done_items(self):
+        items = await self.checklist_items()
+        return [i for i in items if i.done]
 
     async def get_item(self, index: int):
         return (await self.checklist_items())[index]
     
-    async def get_item_by_value(self, value: str):
-        await self.checklist_items()
-        return (self._checklist_dict)[value]
+    async def get_item_by_value(self, value: str, dispatch=False):
+        await self.checklist_items(dispatch)
+        return self._checklist_dict[value]
 
     async def add_item(self, item: ChecklistItem):
         self._update = True
@@ -126,3 +148,64 @@ class Checklist:
     async def roles(self):
         return [ci.role for ci in await self.checklist_items() if ci.type == ChecklistItem.ROLE]
 
+
+class ChecklistSelect(DynamicItem[Select], template=r"gapps:ChecklistSelect:(?P<user_id>[0-9]+)"):
+    def __init__(self, checklist: Checklist):
+        self.checklist = checklist
+        self.bot = checklist.bot
+        self.user_id = checklist.member.id
+        super().__init__(
+            Select(
+                placeholder="Select an item to toggle",
+                options = [
+                    discord.SelectOption(
+                        label=ci.clean_str(),
+                        value=str(ci.value)
+                    ) for ci in checklist._checklist_items
+                ],
+                custom_id=f"gapps:ChecklistSelect:{self.user_id}",
+                min_values=0, max_values=len(checklist._checklist_items)
+            )
+        )
+
+    @classmethod
+    async def new(cls, checklist: Checklist):
+        await checklist.refresh_items(dispatch=False)
+        return cls(checklist)
+    
+    @classmethod
+    async def from_custom_id(cls, interaction: discord.Interaction, item: Select, match: typing.Match[str]):
+        cog = interaction.client.get_cog("GenesisApps")
+        user_id = int(match.group("user_id"))
+        member = cog.get_member(interaction.guild, user_id)
+        app = cog.application_for(member)
+        self = await cls.new(
+            Checklist(
+                cog.config.member(member).CHECKLIST, 
+                cog.bot, interaction.guild, member, app
+            ),
+        )
+        return self
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return True 
+    
+    async def callback(self, interaction: discord.Interaction):
+        items = []
+        for value in self.item.values:
+            try:
+                item = await self.checklist.get_item_by_value(int(value))
+            except (ValueError, KeyError):
+                item = await self.checklist.get_item_by_value(value)
+            item.toggle()
+            items.append(item)
+            await self.checklist.update_item(item)
+        
+        await self.checklist.refresh_items(True)
+        nl = '' if len(items) == 1 else '\n-# '
+        return await interaction.response.send_message(
+            f"{interaction.user.mention} toggled {nl}" +
+            "\n-# ".join([str(ci) for ci in items])
+        )
+        # await self.checklist.refresh_items()
+        # self.checklist.bot.dispatch("gapps_checklist_select", self.checklist)

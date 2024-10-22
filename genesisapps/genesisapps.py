@@ -1,8 +1,9 @@
 import discord
-from discord.errors import Forbidden, NotFound
+from discord.errors import Forbidden, NotFound, HTTPException
+from discord.ui import View
 from redbot.core import commands, checks
 from redbot.core.bot import Red
-from redbot.core.config import Config
+from redbot.core.config import Config, Group
 from redbot.core.utils.predicates import MessagePredicate
 
 import re
@@ -11,163 +12,12 @@ from datetime import datetime
 from typing import Union
 
 from .wufoo import Wufoo, FormNotFound, DiscordNameFieldNotFound, MemberNotFound
-from .checklist import Checklist, ChecklistItem
+from .checklist import Checklist, ChecklistItem, ChecklistSelect
+from .helpers import get_thread, MissingMember
+from .application import Application, Image
 
 
 RE_API_KEY = re.compile(r"^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$")
-
-
-class Log:
-    def __init__(self, channel: discord.TextChannel, message: discord.Message=None):
-        self.message = message
-        self.channel = channel
-    
-    async def post(self, content: str, timestamp: int=None):
-        if self.message is None:
-            self.message = await self.channel.send(f"**Log:**\n{LogEntry(content, timestamp)}")
-        else:
-            self.message = await self.message.edit(
-                content=f"{self.message.content}\n{LogEntry(content, timestamp)}"
-            )
-        return self.message
-
-
-class LogEntry:
-    def __init__(self, content: str, timestamp: datetime=None):
-        self.content = content
-        self.timestamp = timestamp
-    
-    def __str__(self):
-        now = datetime.now()
-        if self.timestamp is not None:
-            now = self.timestamp
-        nowts = int(now.timestamp())
-        return f"-# <t:{nowts}:d><t:{nowts}:t> (<t:{nowts}:R>) - **{self.content}**"
-
-
-# can't inherit from discord.Member cause trying to set id gives an error
-# and I didn't want to look into it further
-class MissingMember:
-    def __init__(self, id: int, guild: discord.Guild):
-        self.id = id
-        self.guild = guild
-        self.roles = []
-        self.mention = f"<@{self.id}>"
-    
-    def __str__(self):
-        return self.mention()
-
-async def get_thread(forum, thread_id):
-    thread = forum.get_thread(thread_id)
-    if thread is None:
-        async for t in forum.archived_threads():
-            if t.id == thread_id:
-                return t
-    return thread
-
-
-class Application:
-    def __init__(self, member: discord.Member, guild: discord.Guild, config: Config, bot: Red):
-        self.guild = guild
-        self.member = member
-        self.config = config
-        self.thread: discord.Thread
-        self.checklist: Checklist
-        self.display_message: discord.Message
-        self.log: Log
-        self.bot = bot
-
-    @classmethod
-    async def new(cls, member: discord.Member, guild: discord.Guild, config: Config, bot: Red):
-        app = cls(member, guild, config, bot)
-
-        forum = guild.get_channel(await config.guild(guild).TRACKING_CHANNEL())
-
-        mconf = config.member(member)
-        # if user's first join
-        if (
-            await mconf.THREAD_ID() is None or 
-            not (thread := await get_thread(forum, await app.config.member(member).THREAD_ID()))
-        ):
-            # record member
-            await config.guild(guild).APP_MEMBERS.set_raw(f"{member.id}", value=True)
-
-            await app.create_checklist()
-
-            thread = await app.create_thread()
-        else:
-            app.checklist = await Checklist.new(app.config.member(member).CHECKLIST, app.bot, app.guild, app.member, app)
-
-        app.thread = thread
-        app.display_message = await app.thread.fetch_message(await app.config.member(member).DISPLAY_MESSAGE_ID())
-        logmsg = await app.thread.fetch_message(await app.config.member(member).LOG_MESSAGE_ID())
-        app.log = Log(app.thread, logmsg)
-        return app
-
-    async def create_checklist(self):
-        mconf = self.config.member(self.member)
-        if await mconf.THREAD_ID() is None:
-            cl = await Checklist.new_from_template(
-                await self.config.guild(self.guild).CHECKLIST_TEMPLATE(),
-                mconf.CHECKLIST, self.bot, self.guild, self.member, self
-            )
-        else:
-            cl = await Checklist.new(mconf.CHECKLIST, self.bot, self.guild, self.member, self)
-        self.checklist = cl
-
-    async def create_thread(self):
-        return await self.display()
-
-    @property
-    def closed(self):
-        return self.thread.archived
-    
-    async def open(self):
-        self.thread = await self.thread.edit(archived=False)
-        self.bot.dispatch("gapps_app_opened", self)
-
-    async def close(self):
-        self.thread = await self.thread.edit(archived=True)
-        self.bot.dispatch("gapps_app_closed", self)
-
-    async def display(self):
-        if isinstance(self.member, MissingMember):
-            joinmsg = f"{self.member.mention} left/kicked <t:{await self.config.member(self.member).LEFT_AT()}:R>"
-        else:
-            joinmsg = f"{self.member.mention} joined <t:{int(self.member.joined_at.timestamp())}:R>"
-        
-        msgs = await self.config.member(self.member).MESSAGES()
-        firstmsglink = await self.config.member(self.member).FIRST_MESSAGE_LINK()
-
-        msgsmsg = f"__**{msgs}**__ messages" + (f" ({firstmsglink})" if firstmsglink else "")
-
-        rolesmsg = "**Roles:**\n" + " ".join(r.mention for r in self.member.roles if r != self.guild.default_role)
-
-        checklistmsg = f"**Checklist:**\n" + await self.checklist.to_str()
-
-        txt = f"{joinmsg}\n{msgsmsg}\n\n{rolesmsg}\n\n{checklistmsg}"
-
-        mconf = self.config.member(self.member)
-        if await mconf.THREAD_ID() is None:
-            forum = self.guild.get_channel(await self.config.guild(self.guild).TRACKING_CHANNEL())
-            thread_with_message = await forum.create_thread(
-                name=self.member.name,
-                content=txt
-            )
-            await mconf.THREAD_ID.set(thread_with_message.thread.id)
-            await mconf.DISPLAY_MESSAGE_ID.set(thread_with_message.message.id)
-            log = Log(thread_with_message.thread)
-            logmsg = await log.post("Joined", self.member.joined_at)
-            await mconf.LOG_MESSAGE_ID.set(logmsg.id)
-
-            await thread_with_message.message.pin()
-            await logmsg.pin()
-
-            return thread_with_message.thread
-        else:
-            # unarchive thread if archived
-            await self.open()
-            return await self.display_message.edit(content=txt)
 
 
 class MemberOrMissingMemberConverter(commands.Converter):
@@ -176,6 +26,17 @@ class MemberOrMissingMemberConverter(commands.Converter):
             return await commands.MemberConverter().convert(ctx, argument)
         except:
             return MissingMember(int(argument), ctx.guild)
+
+
+class MemberOrMissingMemberOrRoleConverter(commands.Converter):
+    async def convert(self, ctx: commands.Context, argument: str):
+        try:
+            return await commands.MemberConverter().convert(ctx, argument)
+        except:
+            try:
+                return await commands.RoleConverter().convert(ctx, argument)
+            except:
+                return MissingMember(int(argument), ctx.guild)
 
 
 class RoleOrStringConverter(commands.Converter):
@@ -197,18 +58,25 @@ class GenesisApps(commands.Cog):
 
         self.config.register_member(**{
             "ID": None,
-            "UPDATE": True,
+            "UPDATE": False,
             "MESSAGES": 0,
             "THREAD_ID": None,
             "DISPLAY_MESSAGE_ID": None,
             "LOG_MESSAGE_ID": None,
-            "STATUS_UPDATES": [],
             "IMAGE_MESSAGE_URLS": [],
             "IMAGES": [],
+            "IMAGE_INDEX": 0,
             "NICKNAMES": [],
             "CHECKLIST": {},
             "LEFT_AT": None,
-            "FIRST_MESSAGE_LINK": None
+            "FIRST_MESSAGE_LINK": None,
+            "AUTO_KICK_IMMUNITY": True,
+            "LOG": [],
+            "APP_CLOSED": False,
+            "APP_EXEMPT": False,
+            "FEEDBACK": [],
+            "LAST_MESSAGE_DATE": None,
+            "LAST_CHECKLIST_DATE": None
         })
 
         self.config.register_guild(**{
@@ -218,12 +86,19 @@ class GenesisApps(commands.Cog):
             "WUFOO_FORM_URL": None,
             "WUFOO_DISCORD_USERNAME_FIELD": None,
             "CHECKLIST_TEMPLATE": {},
-            "MENTION_ROLE": None,
+            "MENTION_ROLE": None,  # also mention when application complete
+            "CHECKLIST_ROLES": {},  # roles that are allowed to toggle the checklist items
+            "ROLE_SWAPS": {},
+            "APPLICATION_EXEMPT_ROLE": None,
             "DAYS_NO_MESSAGE_ALARM": None,
             "DAYS_NO_CHECKLIST_ALARM": None,
             "DAYS_SINCE_JOIN_ALARM": None,
+            "DAYS_TO_KICK_IF_NO_ACTIVITY": None,
+            "INACTIVITY_KICK_MSG": None,
             "APP_MEMBERS": {}
         })
+
+        bot.add_dynamic_items(ChecklistSelect)
 
         self.wufoo_apis = {}
         self.applications = {}
@@ -235,13 +110,19 @@ class GenesisApps(commands.Cog):
         if not (member := guild.get_member(member_id)):
             member = MissingMember(member_id, guild)
         return member
+        
+    def memberify(self, thing: Union[discord.Member, MissingMember, discord.Thread, str, Checklist], guild=None):
+        member = thing
+        if isinstance(thing, str):
+            member = self.nickname_map[guild.id][thing.lower()]
+        elif isinstance(thing, Checklist):
+            member = thing.member
+        elif isinstance(thing, discord.Thread):
+            member = self.thread_member_map[thing.id]
+        return member
 
-    def application_for(self, member_or_thread_or_nick: Union[discord.Member, MissingMember, discord.Thread, str], guild=None):
-        member = (mtn := member_or_thread_or_nick)
-        if isinstance(mtn, str):
-            member = self.nickname_map[guild.id][mtn]
-        elif isinstance(mtn, discord.Thread):
-            member = self.thread_member_map[mtn.id]
+    def application_for(self, thing: Union[discord.Member, MissingMember, discord.Thread, str, Checklist], guild=None):
+        member = self.memberify(thing, guild)
         return self.applications[member.guild.id][member.id]
 
     async def setup_wufoo_api(self, gid: int,  form_url: str, api_key: str, discord_name_field: str):
@@ -285,8 +166,16 @@ class GenesisApps(commands.Cog):
                 for nick in conf['NICKNAMES']:
                     self.nickname_map[gid][nick] = member
 
-    def set_application_for(self, member, app):
+    def set_application_for(self, member, app, guild=None):
+        member = self.memberify(member, guild)
         self.applications.setdefault(member.guild.id, {})[member.id] = app
+
+    async def get_or_set_application_for(self, member, guild=None):
+        try:
+            app = self.application_for(member, guild)
+        except KeyError:
+            self.set_application_for(member, app := await Application.new(member, member.guild, self.config, self.bot), guild)
+        return app
 
     def _set_nicknames_for(self, member, nicknames):
         for nick in nicknames:
@@ -295,7 +184,10 @@ class GenesisApps(commands.Cog):
     async def _setup(self):
         if not self.ready:
             await self.setup_applications()
-            await self.setup_all_wufoo()
+            # try:
+            #   await self.setup_all_wufoo()
+            # except AssertionError:
+            #   print("wufoo api failed to load")
             await self.setup_thread_member_map()
             await self.setup_nickname_map()
         self.ready = True
@@ -305,50 +197,71 @@ class GenesisApps(commands.Cog):
         await self._setup()
 
     async def cog_load(self):
-        await self._setup()
+        self.loop_task = self.bot.loop.create_task(self.display_loop())
+        try:
+            await self._setup()
+        except:
+            pass
+
+    async def cog_unload(self):
+        self.loop_task.cancel()
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
+        if before.bot:
+            return
         pass
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
+        if member.bot:
+            return
         now = datetime.now()
         await self.config.member(member).LEFT_AT.set(int(now.timestamp()))
-        (app := self.application_for(member)).member = MissingMember(member.id, member.guild)
+        app = await self.get_or_set_application_for(member)
+        app.member = MissingMember(member.id, member.guild)
         await app.log.post("Left", now)
-        await app.display()
-
+        if app.displayed:
+            await app.display()
         await app.close()
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
+        if member.bot:
+            return
+        
         await self.config.member(member).ID.set(member.id)
 
         tracking_channel = await self.config.guild(member.guild).TRACKING_CHANNEL()
         if tracking_channel is None:
             return
 
-        was_here_before = await self.config.member(member).THREAD_ID()
+        was_here_before = len(await self.config.member(member).LOG())
         
-        self.set_application_for(member, app := await Application.new(member, member.guild, self.config, self.bot))
-        self.thread_member_map[app.thread.id] = member
+        app = await self.get_or_set_application_for(member)
+        
+        # TODO: self.thread_member_map[app.thread.id] = member
         
         if was_here_before:
-            await app.display()
+            if app.displayed:
+                await app.display()  # opens app automatically
             await app.log.post("Joined", member.joined_at)
-            await app.thread.send(f"-# {member.mention} rejoined <t:{int(datetime.now().timestamp())}:R>")
+            if app.displayed:
+                await app.thread.send(f"-# {member.mention} rejoined <t:{int(datetime.now().timestamp())}:R>")
+        else:
+            # new joins are subject to auto-kicking
+            await self.config.member(member).AUTO_KICK_IMMUNITY.set(False)
 
     @commands.Cog.listener()
     async def on_gapps_checklist_update(self, checklist: Checklist):
         await checklist.app.display()
         if await checklist.is_done():
             await checklist.app.close()
-        pass
-
+        await checklist.app.record_checklist_update()
+        
     @commands.Cog.listener()
     async def on_gapps_app_closed(self, app):
-        for nick, member in self.nickname_map[app.member.guild.id].items():
+        for nick, member in list(self.nickname_map[app.member.guild.id].items()):
             # compare ids cause MissingMember != Member atm maybe change that later :eyes:
             if member.id == app.member.id:
                 del self.nickname_map[app.member.guild.id][nick]
@@ -367,11 +280,10 @@ class GenesisApps(commands.Cog):
         if not await self.config.guild(message.guild).TRACKING_CHANNEL():
             return
 
-        members_to_check_for = [app.member for app in self.applications.get(message.guild.id, {}).values() if not app.closed]
-        check_for_id_map = {m.id: m for m in members_to_check_for}
-
         # if in peer_review channel, check for mentions
         if message.channel.id == await self.config.guild(message.guild).PEER_REVIEW_CHANNEL():
+            members_to_check_for = [app.member for app in self.applications.get(message.guild.id, {}).values() if not app.closed]
+
             mentions_map = {m.id: m for m in members_to_check_for}
             if message.mentions:
                 members = set([m for m in message.mentions if m.id in mentions_map])
@@ -383,44 +295,47 @@ class GenesisApps(commands.Cog):
             nick_map = {nick.lower(): mem for nick, mem in self.nickname_map[message.guild.id].items() if mem in members_to_check_for}
             the_map = {**nick_map, **name_map, **disp_map}
 
+            if not the_map:
+                return
+
             sr = r"(^|\W)" + "(?P<find>"
             er = ")" + r"($|\W)"
-            pattern = sr + "|".join(list(name_map) + list(disp_map) + list(nick_map)) + er
+            pattern = sr + "|".join(the_map) + er
             
             for m in re.finditer(pattern, message.content.lower()):
                 members.add(the_map[m.group('find')])
             
             for m in members:
-                app = self.application_for(m)
-                await app.thread.send(f"{message.author.mention}: {message.content}\n-# {message.jump_url}")
+                app = await self.get_or_set_application_for(m, message.guild)
+                await app.add_feedback(message)
+            return
 
-        # else check if applicant
-        elif message.author.id in check_for_id_map:
-            mconf = self.config.member(message.author)
+        # check if applicant
+        if await Application.app_exempt(self.config, message.author):
+            return
+        
+        app = await self.get_or_set_application_for(message.author)
+        
+        # increment message counter
+        await app.new_message(message)
+        
+        # resend images
+        if (atts := [m for m in message.attachments if m.content_type.startswith("image")]):
             
-            # increment message counter
-            n = await mconf.MESSAGES()
-            await mconf.MESSAGES.set(n + 1)
-            if n == 0:
-                await mconf.FIRST_MESSAGE_LINK.set(message.jump_url)
-            
-            # resend images
-            if (atts := [m for m in message.attachments if m.content_type.startswith("image")]):
-                app = self.application_for(message.author)
-                img_messages = await mconf.IMAGE_MESSAGE_URLS()
-                image_li = await mconf.IMAGES()
-                images_per_msg = 5
-                for imgs in [atts[i:i + images_per_msg] for i in range(0, len(atts), images_per_msg)]:
-                    urls = [i.proxy_url for i in imgs]
+            imgs = [Image(i.proxy_url, message.jump_url, False, c + len(app.images)) for c, i in enumerate(atts)]
 
-                    img_str = ", ".join(f"[{i + 1 + len(image_li)}]({url})" for i, url in enumerate(urls))
-                    msg = await app.thread.send(f"[images {len(img_messages) + 1}]\n* {message.jump_url} {img_str}")
-                    img_messages.append(msg.jump_url)
-                    image_li += urls
-                await mconf.IMAGE_MESSAGE_URLS.set(img_messages)
-                await mconf.IMAGES.set(image_li)
+            await app.post_images(imgs)
+        
+        if app.messages == 1:
+            await app.display()
 
-            await mconf.UPDATE.set(True)
+    async def display_loop(self):
+        while True:
+            for guild_id, apps in self.applications.items():
+                for member_id, app in apps.items():
+                    if app.update:
+                        await app.display()
+            await asyncio.sleep(60*10)
 
     @commands.group(aliases=["gapps"])
     @checks.admin_or_permissions(manage_guild=True)
@@ -428,18 +343,72 @@ class GenesisApps(commands.Cog):
         """GenesisApps setup commands"""
 
     @genesisapps.command()
+    async def autokickimmune(self, ctx: commands.Context, member: discord.Member) -> None:
+        """Toggle whether or not a user is immune to inactivity auto-kicking"""
+        setting = not await self.config.member(member).AUTO_KICK_IMMUNE()
+        await self.config.member(member).AUTO_KICK_IMMUNE.set(setting)
+        if setting:
+            await ctx.send(f"{member.mention} is now immune to inactivity auto-kicking")
+        else:
+            await ctx.send(f"{member.mention} is no longer immune to inactivity auto-kicking")
+
+    @genesisapps.command()
+    async def create(self, ctx: commands.Context, member_or_member_id: MemberOrMissingMemberConverter) -> None:
+        """Manually create a application thread for a user
+        Note, no thread is made if the applicant is exempt
+        """
+        app = await self.get_or_set_application_for(member_or_member_id)        
+        await app.display()
+
+    @genesisapps.command()
+    async def exempt(self, ctx: commands.Context, member: discord.Member) -> None:
+        """Toggle a user's exemption to the application process. 
+        Users that are exempt are still tracked, but their application thread isn't updated
+        and no actions are taken based on their application"""
+        role_found = await Application.has_exempt_role(self.config, member)
+        
+        exempt = not await Application.has_manual_exempt(self.config, member)
+        await Application.set_manual_exempt(self.config, member, exempt)
+        if exempt:
+            await ctx.send(f"{member.mention} is now exempt from the application process")
+        else:
+            await ctx.send(f"{member.mention} is no longer exempt from the application process")
+        await ctx.send(f"Although, this user already has the **{role_found.name}** role. Regardless of this setting, the user will already be exempt.")
+        if exempt or role_found:
+            await (await self.get_or_set_application_for(member)).close()
+    
+    @genesisapps.command()
+    async def exemptrole(self, ctx: commands.Context, role: discord.Role) -> None:
+        """Set the role to be exempt from the application process. 
+        This is usually the role that would be used to mark that the application is complete"""
+        await self.config.guild(ctx.guild).APPLICATION_EXEMPT_ROLE.set(role.id)
+        await ctx.send(f"Exempt role is set to {role.mention}")
+
+    @genesisapps.command()
     async def delete(self, ctx: commands.Context, member_or_member_id: MemberOrMissingMemberConverter) -> None:
-        """Delete an application !!All data will be lost for this application!!"""
+        """Delete an application **!!All data will be lost for this application!!**
+        
+        Applicants without the exempt role will have their applications recreated automatically once they show some activity.
+        If instead you just want to make them exempt to the application process, either
+         * give them the application exempt role or
+         * make them exempt with `[p]gapps exempt <user>`"""
         mconf = self.config.member(member_or_member_id)
-        forum = ctx.guild.get_channel(await self.config.guild(ctx.guild).TRACKING_CHANNEL())
-        if not (thread_id := await mconf.THREAD_ID()):
+        forum_id = await self.config.guild(ctx.guild).TRACKING_CHANNEL()
+        forum = ctx.guild.get_channel(forum_id)
+        thread_id = await mconf.THREAD_ID()
+        if forum_id is None:
             await ctx.send("No forum channel set. Use `[p]gapps trackforum <forum>` to set it")
             return
         if forum is None:
             await ctx.send("Tracking forum not found. Use `[p]gapps trackforum <forum>` to set it")
             return
+        if thread_id is None:
+            await ctx.send("No application found for this appplicant/member")
+            return
         
         thread = await get_thread(forum, thread_id)
+        app = await self.get_or_set_application_for(member_or_member_id)
+        await app.close()
         deleted = "thread and data"
         if thread is None:
             await ctx.send("No thread found for this applicant/member")
@@ -453,6 +422,7 @@ class GenesisApps(commands.Cog):
         
         await self.config.guild(ctx.guild).APP_MEMBERS.clear_raw(f"{member_or_member_id.id}")
         await mconf.clear()
+        del self.applications[ctx.guild.id][member_or_member_id.id]
         try:
             await ctx.send(f"Application {deleted} deleted")
         except NotFound:
@@ -465,7 +435,7 @@ class GenesisApps(commands.Cog):
         When users use one of these nicknames in 
         """
         try:
-            app = self.application_for(member)
+            app = await self.get_or_set_application_for(member)
         except:
             await ctx.send(f"There is no application for {member.mention}")
             return
@@ -475,9 +445,6 @@ class GenesisApps(commands.Cog):
 
         if not app.closed:
             self._set_nicknames_for(member, nicknames)
-        
-        def fmt_nicks(nicks):
-            return ', '.join(nicks)
 
         if oldnicks:
             await ctx.send(
