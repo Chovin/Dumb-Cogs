@@ -5,6 +5,7 @@ from redbot.core.config import Group
 
 import typing
 from typing import Union
+from datetime import datetime
 
 
 class ChecklistItem:
@@ -118,16 +119,20 @@ class Checklist:
         await self.checklist_items(dispatch)
         return self._checklist_dict[value]
 
-    async def add_item(self, item: ChecklistItem):
+    async def add_item(self, item: ChecklistItem, defer_post=False):
         self._update = True
         await self.config.set_raw(item.value, value=item.to_dict())
+        if not defer_post and self.app:
+            await self.app.log.post(str(item), datetime.now())
     
     async def remove_item(self, item: ChecklistItem):
         self._update = True
         await self.config.clear_raw(item.value)
+        if self.app:
+            await self.app.log.post(str(item), datetime.now())
     
-    async def update_item(self, item: ChecklistItem):
-        await self.add_item(item)
+    async def update_item(self, item: ChecklistItem, defer_post=False):
+        await self.add_item(item, defer_post)
 
     async def copy_from_template(self, template: dict):
         await self.config.set(template)
@@ -199,7 +204,10 @@ class ChecklistSelect(DynamicItem[Select], template=r"gapps:ChecklistSelect:(?P<
                 item = await self.checklist.get_item_by_value(value)
             item.toggle()
             items.append(item)
-            await self.checklist.update_item(item)
+            await self.checklist.update_item(item, True)
+
+        if self.checklist.app and items:
+            await self.checklist.app.log.post([str(ci) for ci in items], datetime.now())
         
         await self.checklist.refresh_items(True)
         nl = '' if len(items) == 1 else '\n-# '
