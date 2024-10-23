@@ -465,6 +465,12 @@ class GenesisApps(commands.Cog):
             await ctx.send("No application found for this appplicant/member")
             return
         
+        await ctx.reply("Are you sure you want to delete this application? This deletes all data stored in the bot for this user and the action cannot be undone. Type \"yes\" to continue.")
+        message = await self.bot.wait_for('message', timeout=60, check=MessagePredicate.same_context(channel=ctx.channel, user=ctx.author))
+        if 'yes' not in message.content.lower():
+            await ctx.send("Canceling")
+            return
+
         thread = await get_thread(forum, thread_id)
         app = await self.get_or_set_application_for(member_or_member_id)
         await app.close()
