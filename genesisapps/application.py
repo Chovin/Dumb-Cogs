@@ -6,6 +6,7 @@ from redbot.core.config import Config
 
 from typing import Union
 from datetime import datetime
+import asyncio
 
 from .checklist import Checklist, ChecklistSelect
 from .helpers import get_thread, role_mention, MissingMember
@@ -148,6 +149,7 @@ class Application:
         self.last_checklist_date: datetime
         self.last_message_date: datetime
         self.update: bool
+        self.display_lock = asyncio.Lock()
 
     @classmethod
     async def new(cls, member: discord.Member, guild: discord.Guild, config: Config, bot: Red):
@@ -338,6 +340,10 @@ class Application:
         self.images = self.images + images
 
     async def display(self):
+        async with self.display_lock:
+            await self._display()
+
+    async def _display(self):    
         if await Application.app_exempt(self.config, self.member):
             if not self.closed:
                 await self.close()
