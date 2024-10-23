@@ -14,7 +14,7 @@ from typing import Union
 from .wufoo import Wufoo, FormNotFound, DiscordNameFieldNotFound, MemberNotFound
 from .checklist import Checklist, ChecklistItem, ChecklistSelect
 from .helpers import get_thread, MissingMember
-from .application import Application, Image
+from .application import Application, Image, identifiable_name
 from .expiringdict import ExpiringDict
 from .log import log
 
