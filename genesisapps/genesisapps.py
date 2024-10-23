@@ -63,6 +63,7 @@ class GenesisApps(commands.Cog):
             "NAME": None,
             "UPDATE": False,
             "MESSAGES": 0,
+            "TOTAL_MESSAGES": 0,
             "THREAD_ID": None,
             "DISPLAY_MESSAGE_ID": None,
             "LOG_MESSAGE_ID": None,
@@ -270,6 +271,8 @@ class GenesisApps(commands.Cog):
         was_here_before = len(await self.config.member(member).LOG())
         
         app = await self.get_or_set_application_for(member)
+        
+        await app.set_messages(0)
         
         # TODO: self.thread_member_map[app.thread.id] = member
         

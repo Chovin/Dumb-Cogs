@@ -150,6 +150,7 @@ class Application:
         self.feedback = []
         self.images = []
         self.messages = 0
+        self.total_messages = 0
         self.first_message_link: str
         self.last_checklist_date: datetime
         self.last_message_date: datetime
@@ -174,6 +175,7 @@ class Application:
         app.feedback = [Feedback.from_dict(d) for d in await mconf.FEEDBACK()]
         app.images = [Image.from_dict(d) for d in await mconf.IMAGES()]
         app.messages = await mconf.MESSAGES()
+        app.total_messages = await mconf.TOTAL_MESSAGES()
         app.first_message_link = await mconf.FIRST_MESSAGE_LINK()
         lcd = await mconf.LAST_CHECKLIST_DATE()
         app.last_checklist_date = datetime.fromtimestamp(lcd) if lcd else datetime.now()
@@ -284,13 +286,19 @@ class Application:
 
     async def new_message(self, message: discord.Message):
         self.messages += 1
+        self.total_messages += 1
         await self.config.member(self.member).MESSAGES.set(self.messages)
+        await self.config.member(self.member).TOTAL_MESSAGES.set(self.total_messages)
         if self.messages == 1:
             await self.config.member(self.member).FIRST_MESSAGE_LINK.set(message.jump_url)
         self.last_message_date = datetime.now()
         await self.config.member(self.member).LAST_MESSAGE_DATE.set(self.last_message_date.timestamp())
         await self.config.member(self.member).UPDATE.set(True) 
         self.update = True
+    
+    async def set_messages(self, messages: int):
+        await self.config.member(self.member).MESSAGES.set(messages)
+        self.messages = messages
 
     async def add_feedback(self, message: discord.Message):
         fb = Feedback.from_message(message)
@@ -366,7 +374,10 @@ class Application:
         msgs = self.messages
         firstmsglink = self.first_message_link
 
-        msgsmsg = f"__**{msgs}**__ messages" + (f" ({firstmsglink})" if firstmsglink else "")
+        extra = ""
+        if msgs != self.total_messages:
+            extra = f" ({self.total_messages} total)"
+        msgsmsg = f"__**{msgs}**__ msgs{extra}" + (f" ({firstmsglink})" if firstmsglink else "")
 
         rolesmsg = "**Roles:**\n" + " ".join(r.mention for r in self.member.roles if r != self.guild.default_role)
 
