@@ -552,6 +552,20 @@ class GenesisApps(commands.Cog):
     async def trackforum(self, ctx: commands.Context, channel: discord.ForumChannel = None) -> None:
         """Set the forum channel to create applicant tracking threads in"""
 
+        if not ctx.guild.me.guild_permissions.view_audit_log:
+            await ctx.send(
+                "Please ensure the bot has `View Audit Log` permissions in order "
+                "to be able to track a member's reason for leaving (kick/ban vs just leaving)"
+            )
+        
+        if (not ctx.guild.me.guild_permissions.manage_messages) or (not ctx.guild.me.guild_permissions.manage_threads):
+            await ctx.send("Please ensure the bot has `Manage Messages` and `Manage Threads` permissions in order to be able to create and pin application threads")
+            return
+        
+        if (not channel.permissions_for(ctx.guild.me).create_public_threads):
+            await ctx.send("Please ensure the bot has `Create Public Threads` permission in the forum channel")
+            return
+
         if channel is None:
             await self.config.guild(ctx.guild).TRACKING_CHANNEL.set(None)
             await ctx.send("Tracking forum has been unset")
