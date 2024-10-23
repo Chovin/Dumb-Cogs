@@ -402,7 +402,7 @@ class Application:
             # unarchive thread if archived
             await self.open()
             old_log_id = await mconf.LOG_MESSAGE_ID()
-            log_msg = await self.log.post([str(ci) for ci in self.checklist.changed_items], datetime.now())
+            log_msg = await self.log.post([], datetime.now())
             if old_log_id != log_msg.id:
                 await mconf.LOG_MESSAGE_ID.set(log_msg.id)
             new_msg = await self.display_message.edit(content=txt)
