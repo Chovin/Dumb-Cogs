@@ -13,6 +13,11 @@ from .helpers import get_thread, role_mention, MissingMember
 
 MENTION_EVERYONE = discord.AllowedMentions(roles=True, users=True, everyone=True)
 
+
+def identifiable_name(member):
+    return f"{member.display_name} ({member.name})" if member.name != member.display_name else member.name
+
+
 class Log:
     def __init__(self, config: Config, message=None, channel=None):
         self.config = config
@@ -351,8 +356,10 @@ class Application:
 
         status = (await self.config.member(self.member).STATUS()).lower()
         if isinstance(self.member, MissingMember):
+            name = await self.config.member(self.member).NAME()
             timestamp = await self.config.member(self.member).LEFT_AT()
         else:
+            name = identifiable_name(self.member)
             timestamp = int(self.member.joined_at.timestamp())
         joinmsg = f"{self.member.mention} {status} <t:{timestamp}:R>"
         
@@ -377,7 +384,7 @@ class Application:
         
         if thread is None:
             thread_with_message = await forum.create_thread(
-                name=self.member.name,
+                name=name,
                 content=txt,
                 view=discord.ui.View().add_item(ChecklistSelect(self.checklist))
             )

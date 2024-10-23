@@ -60,6 +60,7 @@ class GenesisApps(commands.Cog):
 
         self.config.register_member(**{
             "ID": None,
+            "NAME": None,
             "UPDATE": False,
             "MESSAGES": 0,
             "THREAD_ID": None,
@@ -216,6 +217,9 @@ class GenesisApps(commands.Cog):
             return
         if await Application.app_exempt(self.config, after):
             return
+        if before.display_name != after.display_name or before.name != after.name:
+            app = await self.get_or_set_application_for(after)
+            await self.config.member(after).NAME.set(identifiable_name(after))
         if set([r.id for r in before.roles]) == set([r.id for r in after.roles]):
             return
         
@@ -257,6 +261,7 @@ class GenesisApps(commands.Cog):
             return
         
         await self.config.member(member).ID.set(member.id)
+        await self.config.member(member).NAME.set(member.display_name)
 
         tracking_channel = await self.config.guild(member.guild).TRACKING_CHANNEL()
         if tracking_channel is None:
