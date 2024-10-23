@@ -276,6 +276,10 @@ class GenesisApps(commands.Cog):
     async def on_message(self, message: discord.Message):
         if message.author.bot:
             return
+        
+        # wave at new users is a message
+        if message.is_system():
+            return
 
         if not await self.config.guild(message.guild).TRACKING_CHANNEL():
             return
