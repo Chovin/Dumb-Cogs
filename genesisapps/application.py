@@ -27,7 +27,13 @@ class Log:
         return log
 
     def __str__(self):
-        return "**Log:**\n" +'\n'.join(str(entry) for entry in self.entries)
+        s = "**Log:**\n" +'\n'.join(str(entry) for entry in self.entries)
+        si = 2
+        while len(s) > 1800:
+            s = f"**Log:**\n{self.entries[0]}\n-# `...`\n" + '\n'.join(str(entry) for entry in self.entries[si:])
+            si += 1
+        
+        return s
     
     async def post(self, content: Union[str, list] = [], timestamp: int=None, channel=None):
         if isinstance(content, str):
