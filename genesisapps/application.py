@@ -379,12 +379,18 @@ class Application:
             extra = f" ({self.total_messages} total)"
         msgsmsg = f"__**{msgs}**__ msgs{extra}" + (f" ({firstmsglink})" if firstmsglink else "")
 
+        updatemsg = (
+            f"<t:{int(self.last_message_date.timestamp())}:R> (last msg)\n"
+            f"<t:{int(self.last_checklist_date.timestamp())}:R> (last checklist)"
+        )
+
+
         rolesmsg = "**Roles:**\n" + " ".join(r.mention for r in self.member.roles if r != self.guild.default_role)
 
         await self.checklist.refresh_items(True, dispatch=False)
         checklistmsg = f"**Checklist:**\n" + await self.checklist.to_str()
 
-        txt = f"{joinmsg}\n{msgsmsg}\n\n{rolesmsg}\n\n{checklistmsg}"
+        txt = f"{joinmsg}\n{msgsmsg}\n\n{updatemsg}\n\n{rolesmsg}\n\n{checklistmsg}"
 
         mconf = self.config.member(self.member)
 
