@@ -198,11 +198,11 @@ class GenesisApps(commands.Cog):
         await self._setup()
 
     async def cog_load(self):
-        self.loop_task = self.bot.loop.create_task(self.display_loop())
         try:
             await self._setup()
         except:
             pass
+        self.loop_task = self.bot.loop.create_task(self.display_loop())
 
     async def cog_unload(self):
         self.loop_task.cancel()
