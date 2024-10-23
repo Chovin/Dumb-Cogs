@@ -349,10 +349,12 @@ class Application:
                 await self.close()
             return
 
+        status = (await self.config.member(self.member).STATUS()).lower()
         if isinstance(self.member, MissingMember):
-            joinmsg = f"{self.member.mention} left/kicked <t:{await self.config.member(self.member).LEFT_AT()}:R>"
+            timestamp = await self.config.member(self.member).LEFT_AT()
         else:
-            joinmsg = f"{self.member.mention} joined <t:{int(self.member.joined_at.timestamp())}:R>"
+            timestamp = int(self.member.joined_at.timestamp())
+        joinmsg = f"{self.member.mention} {status} <t:{timestamp}:R>"
         
         msgs = self.messages
         firstmsglink = self.first_message_link

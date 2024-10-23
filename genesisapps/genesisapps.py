@@ -70,6 +70,7 @@ class GenesisApps(commands.Cog):
             "NICKNAMES": [],
             "CHECKLIST": {},
             "LEFT_AT": None,
+            "STATUS": "Joined",
             "FIRST_MESSAGE_LINK": None,
             "AUTO_KICK_IMMUNITY": True,
             "LOG": [],
@@ -105,6 +106,7 @@ class GenesisApps(commands.Cog):
         self.applications = {}
         self.thread_member_map = {}
         self.nickname_map = {}
+        self.audit_log_cache = {}
         self.ready = False
 
     def get_member(self, guild: discord.Guild, member_id: int):
@@ -228,9 +230,24 @@ class GenesisApps(commands.Cog):
         await self.config.member(member).LEFT_AT.set(int(now.timestamp()))
         app = await self.get_or_set_application_for(member)
         app.member = MissingMember(member.id, member.guild)
-        await app.log.post("Left", now)
+
+        await asyncio.sleep(5)  # wait for audit log update
+        entry = self.audit_log_cache.get(member.guild.id, {}).pop(member.id, None)
+        msg = action = "Left"
+        if entry:
+            action = {
+                discord.AuditLogAction.kick: 'Kicked',
+                discord.AuditLogAction.ban: 'Banned',
+            }[entry.action]
+            msg = f"{action} by {entry.guild.get_member(entry.user_id).mention} ({entry.reason or 'no reason'})"
+        
+        await self.config.member(member).STATUS.set(action)
+
+        await app.log.post(msg, now)
         if app.displayed:
             await app.display()
+            if entry:
+                await app.thread.send(f"-# {member.mention} {msg} <t:{int(now.timestamp())}:R>")
         await app.close()
 
     @commands.Cog.listener()
@@ -251,6 +268,7 @@ class GenesisApps(commands.Cog):
         # TODO: self.thread_member_map[app.thread.id] = member
         
         if was_here_before:
+            await self.config.member(member).STATUS.set("Joined")
             if app.displayed:
                 await app.display()  # opens app automatically
             await app.log.post("Joined", member.joined_at)
@@ -259,6 +277,18 @@ class GenesisApps(commands.Cog):
         else:
             # new joins are subject to auto-kicking
             await self.config.member(member).AUTO_KICK_IMMUNITY.set(False)
+    
+    @commands.Cog.listener()
+    async def on_audit_log_entry_create(self, entry: discord.AuditLogEntry):
+        if entry.action in (discord.AuditLogAction.kick, discord.AuditLogAction.ban):
+            if entry.guild.id not in self.audit_log_cache:
+                self.audit_log_cache[entry.guild.id] = ExpiringDict(max_age=10)
+            self.audit_log_cache[entry.guild.id][entry.target.id] = entry
+            return
+        
+        if entry.action == discord.AuditLogAction.unban:
+            app = await self.get_or_set_application_for(MissingMember(entry.target.id, entry.guild))
+            await app.log.post(f"Unbanned by {entry.guild.get_member(entry.user_id).mention}", datetime.now())
 
     @commands.Cog.listener()
     async def on_gapps_checklist_update(self, checklist: Checklist):
