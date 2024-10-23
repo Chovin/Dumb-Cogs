@@ -221,9 +221,27 @@ class GenesisApps(commands.Cog):
         if before.display_name != after.display_name or before.name != after.name:
             app = await self.get_or_set_application_for(after)
             await self.config.member(after).NAME.set(identifiable_name(after))
-        if set([r.id for r in before.roles]) == set([r.id for r in after.roles]):
+        before_ids = set([r.id for r in before.roles])
+        after_ids = set([r.id for r in after.roles])
+        if before_ids == after_ids:
             return
         
+        # swap roles
+        removed = before_ids - after_ids
+        if removed:
+            swaps = await self.config.guild(after.guild).ROLE_SWAPS()
+            new_roles = set()
+            for rid in removed:
+                srid = str(rid)
+                if srid in swaps:
+                    new_roles.add(after.guild.get_role(swaps[srid]))
+            if new_roles:
+                try:
+                    await after.add_roles(*new_roles, reason='role swap')
+                except discord.Forbidden as e:
+                    log.error(f"Failed to add roles for role swap for {after.name}", exc_info=e)
+        
+        # checklist roles
         app = await self.get_or_set_application_for(after)
 
         await app.checklist.update_roles(after)
@@ -442,6 +460,16 @@ class GenesisApps(commands.Cog):
         This is usually the role that would be used to mark that the application is complete"""
         await self.config.guild(ctx.guild).APPLICATION_EXEMPT_ROLE.set(role.id)
         await ctx.send(f"Exempt role is set to {role.mention}")
+
+    @genesisapps.command()
+    async def swaproles(self, ctx: commands.Context, removed: discord.Role, added: discord.Role) -> None:
+        """Sets up swapping roles. If the 'removed' role is removed, the 'added' role will be added onto the user"""
+        if not ctx.guild.me.guild_permissions.manage_roles:
+            await ctx.send("Please ensure the bot has `Manage Roles` permissions in order to be able to use swap roles")
+            return
+        
+        await self.config.guild(ctx.guild).ROLE_SWAPS.set_raw(removed.id, value=added.id)
+        await ctx.send(f"Now whenever {removed.mention} is removed, {added.mention} will be added")
 
     @genesisapps.command()
     async def delete(self, ctx: commands.Context, member_or_member_id: MemberOrMissingMemberConverter) -> None:
