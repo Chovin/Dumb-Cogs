@@ -15,6 +15,7 @@ from .wufoo import Wufoo, FormNotFound, DiscordNameFieldNotFound, MemberNotFound
 from .checklist import Checklist, ChecklistItem, ChecklistSelect
 from .helpers import get_thread, MissingMember
 from .application import Application, Image
+from .expiringdict import ExpiringDict
 from .log import log
 
 
