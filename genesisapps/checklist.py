@@ -134,6 +134,22 @@ class Checklist:
     async def update_item(self, item: ChecklistItem, defer_post=False):
         await self.add_item(item, defer_post)
 
+    async def update_roles(self, member: discord.Member):
+        cis = {ci.value: ci for ci in await self.checklist_items() if ci.type == ChecklistItem.ROLE}
+        cis = {r.id: cis[r.id] for r in member.roles if r.id in cis}
+
+        cdones = []
+        for ci in cis.values():
+            if not ci.done:
+                ci.done = True
+                cdones.append(ci)
+                await self.update_item(ci, defer_post=True)
+        if cdones:
+            if self.app:
+                await self.app.log.post([str(ci) for ci in cdones], datetime.now())
+            await self.refresh_items()
+        return cdones
+
     async def copy_from_template(self, template: dict):
         await self.config.set(template)
         await self.refresh_items()

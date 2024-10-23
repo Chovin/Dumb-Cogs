@@ -15,6 +15,7 @@ from .wufoo import Wufoo, FormNotFound, DiscordNameFieldNotFound, MemberNotFound
 from .checklist import Checklist, ChecklistItem, ChecklistSelect
 from .helpers import get_thread, MissingMember
 from .application import Application, Image
+from .log import log
 
 
 RE_API_KEY = re.compile(r"^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$")
@@ -210,7 +211,14 @@ class GenesisApps(commands.Cog):
     async def on_member_update(self, before: discord.Member, after: discord.Member):
         if before.bot:
             return
-        pass
+        if await Application.app_exempt(self.config, after):
+            return
+        if set([r.id for r in before.roles]) == set([r.id for r in after.roles]):
+            return
+        
+        app = await self.get_or_set_application_for(after)
+
+        await app.checklist.update_roles(after)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
@@ -335,10 +343,18 @@ class GenesisApps(commands.Cog):
 
     async def display_loop(self):
         while True:
-            for guild_id, apps in self.applications.items():
-                for member_id, app in apps.items():
-                    if app.update:
-                        await app.display()
+            try:
+                for guild_id, apps in self.applications.items():
+                    guild = self.bot.get_guild(guild_id)
+                    if guild is None:
+                        continue
+                    for member_id, app in apps.items():
+                        member = self.get_member(guild, member_id)
+                        await app.checklist.update_roles(member)
+                        if app.update:
+                            await app.display()
+            except Exception as e:
+                log.error("Error in display loop", exc_info=e)
             await asyncio.sleep(60*10)
 
     @commands.group(aliases=["gapps"])
