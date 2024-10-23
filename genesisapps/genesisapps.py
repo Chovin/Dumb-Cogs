@@ -193,7 +193,7 @@ class GenesisApps(commands.Cog):
             # try:
             #   await self.setup_all_wufoo()
             # except AssertionError:
-            #   print("wufoo api failed to load")
+            #   log.error("wufoo api failed to load")
             await self.setup_thread_member_map()
             await self.setup_nickname_map()
         self.ready = True
@@ -370,7 +370,7 @@ class GenesisApps(commands.Cog):
         # increment message counter
         await app.new_message(message)
         
-        # resend images
+        # send images
         if (atts := [m for m in message.attachments if m.content_type.startswith("image")]):
             
             imgs = [Image(i.proxy_url, message.jump_url, False, c + len(app.images)) for c, i in enumerate(atts)]
