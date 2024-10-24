@@ -504,6 +504,7 @@ class GenesisApps(commands.Cog):
             await ctx.send(f"{member.mention} is now exempt from the application process")
         else:
             await ctx.send(f"{member.mention} is no longer exempt from the application process")
+        if role_found:
         await ctx.send(f"Although, this user already has the **{role_found.name}** role. Regardless of this setting, the user will already be exempt.")
         if exempt or role_found:
             await (await self.get_or_set_application_for(member)).close()
