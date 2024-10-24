@@ -21,6 +21,11 @@ from .log import log
 
 RE_API_KEY = re.compile(r"^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$")
 
+CHECKLIST_CHOICES = [
+    "message",
+    "joined",
+    "checklist"
+]
 
 class MemberOrMissingMemberConverter(commands.Converter):
     async def convert(self, ctx: commands.Context, argument: str):
@@ -47,6 +52,14 @@ class RoleOrStringConverter(commands.Converter):
             return await commands.RoleConverter().convert(ctx, argument)
         except:
             return argument
+
+
+class AlarmConverter(commands.Converter):
+    async def convert(self, ctx: commands.Context, argument: str):
+        argument = argument.lower()
+        if argument not in CHECKLIST_CHOICES:
+            raise commands.BadArgument(f"argument must be one of: {', '.join(CHECKLIST_CHOICES.keys())}")
+        return argument
 
 
 class GenesisApps(commands.Cog):
@@ -81,7 +94,8 @@ class GenesisApps(commands.Cog):
             "APP_EXEMPT": False,
             "FEEDBACK": [],
             "LAST_MESSAGE_DATE": None,
-            "LAST_CHECKLIST_DATE": None
+            "LAST_CHECKLIST_DATE": None,
+            "TRACK_ALARMS": {kind: 0 for kind in CHECKLIST_CHOICES},
         })
 
         self.config.register_guild(**{
@@ -95,9 +109,7 @@ class GenesisApps(commands.Cog):
             "CHECKLIST_ROLES": {},  # roles that are allowed to toggle the checklist items
             "ROLE_SWAPS": {},
             "APPLICATION_EXEMPT_ROLE": None,
-            "DAYS_NO_MESSAGE_ALARM": None,
-            "DAYS_NO_CHECKLIST_ALARM": None,
-            "DAYS_SINCE_JOIN_ALARM": None,
+            "ALARMS": {kind: 0 for kind in CHECKLIST_CHOICES},
             "DAYS_TO_KICK_IF_NO_ACTIVITY": 0,
             "INACTIVITY_KICK_MSG": None,
             "APP_MEMBERS": {}
@@ -320,10 +332,10 @@ class GenesisApps(commands.Cog):
 
     @commands.Cog.listener()
     async def on_gapps_checklist_update(self, checklist: Checklist):
+        await checklist.app.record_checklist_update()
         await checklist.app.display()
         if await checklist.is_done():
             await checklist.app.close()
-        await checklist.app.record_checklist_update()
         
     @commands.Cog.listener()
     async def on_gapps_app_closed(self, app):
@@ -415,8 +427,12 @@ class GenesisApps(commands.Cog):
             await app.display()
 
     async def display_loop(self):
+        day = 0
         while True:
             try:
+                now = datetime.now()
+                prev_day = day
+                day = now.day
                 for guild_id, apps in self.applications.items():
                     guild = self.bot.get_guild(guild_id)
                     if guild is None:
@@ -425,7 +441,7 @@ class GenesisApps(commands.Cog):
                     days_to_autokick = await self.config.guild(guild).DAYS_TO_KICK_IF_NO_ACTIVITY()
                     joined_before_autokick = None
                     if days_to_autokick:
-                        joined_before_autokick = datetime.now() - timedelta(days=days_to_autokick)
+                        joined_before_autokick = now - timedelta(days=days_to_autokick)
                     autokick_msg = await self.config.guild(guild).INACTIVITY_KICK_MSG()
 
                     for member_id, app in apps.items():
@@ -450,7 +466,9 @@ class GenesisApps(commands.Cog):
                                         except:
                                             pass
                                     await member.kick(reason="inactivity auto-kick")
-
+                            # check for alarms
+                            if prev_day != day and (not await Application.app_exempt(self.config, member)) and not app.closed:
+                                await app.check_and_alarm()
                         
             except Exception as e:
                 log.error("Error in display loop", exc_info=e)
@@ -504,7 +522,27 @@ class GenesisApps(commands.Cog):
         else:
             await ctx.send(f"Auto-kick message set to:\n\n{msg}")
 
+    @genesisapps.command()
+    async def alarms(self, ctx: commands.Context, alarm: AlarmConverter, days: int) -> None:
+        """Set alarms to be sent in app thread once specified number of days have passed since something has/hasn't happened
+        
+        The choices for the alarm triggers are days since last message, checklist (item), or joined.
+        Set days to 0 to disable the alarm.
+        Note that alarms won't trigger for applicants that are exempt or whose applications are closed."""
 
+        if days < 0:
+            await ctx.send("Invalid number of days")
+            return
+        
+        mention_role = ctx.guild.get_role(await self.config.guild(ctx.guild).MENTION_ROLE())
+        if not mention_role:
+            await ctx.send("You may want to set the mention role with `[p]gapps mentionrole`")
+        
+        await self.config.guild(ctx.guild).ALARMS.set_raw(alarm, value=days)
+        if days == 0:
+            await ctx.send(f"Disabled alarm for {alarm}")
+        else:
+            await ctx.send(f"An alarm will now go off if {days} days have passed since last {alarm}")
 
     @genesisapps.command()
     async def exempt(self, ctx: commands.Context, member: discord.Member) -> None:

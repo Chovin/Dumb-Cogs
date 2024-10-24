@@ -5,7 +5,7 @@ from redbot.core.bot import Red
 from redbot.core.config import Config
 
 from typing import Union
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 
 from .checklist import Checklist, ChecklistSelect
@@ -260,9 +260,8 @@ class Application:
         if self.displayed and (not self.thread.archived) and not self.closed:
             return
         if self.displayed:
-            role = self.guild.get_role(await self.config.guild(self.guild).MENTION_ROLE())
             if self.thread.archived == self.closed:
-                await self.thread.send(f"{role_mention(role) if role else ''} Application reopened", allowed_mentions=MENTION_EVERYONE)
+                await self.notify("Application reopened")
             else:
                 self.closed = False
                 await self.set_thread(await self.thread.edit(archived=False))
@@ -276,9 +275,8 @@ class Application:
         if self.displayed and self.thread.archived and self.closed:
             return
         if self.displayed:
-            role = self.guild.get_role(await self.config.guild(self.guild).MENTION_ROLE())
             if self.thread.archived == self.closed:
-                await self.thread.send(f"{role_mention(role) if role else ''} Application closed", allowed_mentions=MENTION_EVERYONE)
+                await self.notify("Application closed")
             self.closed = True
             await self.set_thread(await self.thread.edit(archived=True))
         await self.config.member(self.member).APP_CLOSED.set(True)
@@ -361,6 +359,39 @@ class Application:
         await self.config.member(self.member).IMAGE_MESSAGE_URLS.set(img_messages)
         await self.config.member(self.member).IMAGES.set([i.serialize() for i in self.images + images])
         self.images = self.images + images
+
+    async def check_and_alarm(self):
+        now = datetime.now()
+        alarms_before = {
+            kind: now - timedelta(days=days) 
+            for kind, days in (await self.config.guild(self.guild).ALARMS()).items()
+            if days > 0
+        }
+        times = {
+            "message": self.last_message_date,
+            "checklist": self.last_checklist_date,
+            "joined": datetime.fromtimestamp(self.member.joined_at.timestamp())
+        }
+        # ignore alarms that have already gone off
+        mconf = self.config.member(self.member)
+        track_alarms = await mconf.TRACK_ALARMS()
+        for kind, timestamp in track_alarms.items():
+            if datetime.fromtimestamp(timestamp) == times[kind]:
+                del times[kind]
+        offenses = []
+        for kind, before_date in alarms_before.items():
+            if times.get(kind, before_date) < before_date:
+                offenses.append(kind)
+        if offenses:
+            await self.notify(*[f"<t:{int(times[o].timestamp())}:R> since last {o}{' item' if o == 'checklist' else ''}" for o in offenses])
+            await mconf.TRACK_ALARMS.set({**track_alarms, **{o: times[o].timestamp() for o in offenses}})
+
+    async def notify(self, *msgs):
+        if not self.displayed:
+            return
+        role = self.guild.get_role(await self.config.guild(self.guild).MENTION_ROLE())
+        multiple_nl = "\n" if len(msgs) > 1 else ''
+        await self.thread.send(f"{role_mention(role) if role else ''} {multiple_nl}" + "\n".join(msgs), allowed_mentions=MENTION_EVERYONE)
 
     async def display(self):
         async with self.display_lock:
