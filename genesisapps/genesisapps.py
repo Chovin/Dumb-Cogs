@@ -8,7 +8,7 @@ from redbot.core.utils.predicates import MessagePredicate
 
 import re
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Union
 
 from .wufoo import Wufoo, FormNotFound, DiscordNameFieldNotFound, MemberNotFound
@@ -98,7 +98,7 @@ class GenesisApps(commands.Cog):
             "DAYS_NO_MESSAGE_ALARM": None,
             "DAYS_NO_CHECKLIST_ALARM": None,
             "DAYS_SINCE_JOIN_ALARM": None,
-            "DAYS_TO_KICK_IF_NO_ACTIVITY": None,
+            "DAYS_TO_KICK_IF_NO_ACTIVITY": 0,
             "INACTIVITY_KICK_MSG": None,
             "APP_MEMBERS": {}
         })
@@ -405,11 +405,32 @@ class GenesisApps(commands.Cog):
                     guild = self.bot.get_guild(guild_id)
                     if guild is None:
                         continue
+
+                    days_to_autokick = await self.config.guild(guild).DAYS_TO_KICK_IF_NO_ACTIVITY()
+                    joined_before_autokick = None
+                    if days_to_autokick:
+                        joined_before_autokick = datetime.now() - timedelta(days=days_to_autokick)
+                    autokick_msg = await self.config.guild(guild).INACTIVITY_KICK_MSG()
+
                     for member_id, app in apps.items():
+                        # check roles
                         member = self.get_member(guild, member_id)
                         await app.checklist.update_roles(member)
+                        # check if needs displaying
                         if app.update:
                             await app.display()
+                        # check for auto-kicks
+                        if joined_before_autokick:
+                            joined_naive = datetime.fromtimestamp(member.joined_at.timestamp())
+                            if joined_naive < joined_before_autokick and not await app.seen_activity():
+                                if autokick_msg:
+                                    try:
+                                        await member.send(autokick_msg)
+                                    except:
+                                        pass
+                                await member.kick(reason="inactivity auto-kick")
+
+                        
             except Exception as e:
                 log.error("Error in display loop", exc_info=e)
             await asyncio.sleep(60*10)
@@ -428,6 +449,39 @@ class GenesisApps(commands.Cog):
             await ctx.send(f"{member.mention} is now immune to inactivity auto-kicking")
         else:
             await ctx.send(f"{member.mention} is no longer immune to inactivity auto-kicking")
+
+    @genesisapps.command()
+    async def autokick(self, ctx: commands.Context, days: int) -> None:
+        """Set the number of days of no activity before a user is auto-kicked.
+        
+        Set to 0 to disable auto-kicking.
+        Note that no activity means they joined the server and they've sent 
+        no messages and haven't completed any of the checklist items."""
+        if not ctx.guild.me.guild_permissions.kick_members:
+            await ctx.send("Please ensure the bot has `Kick Members` permissions in order to be able to auto-kick members")
+            return
+
+        if days < 0:
+            await ctx.send("Invalid number of days")
+            return
+
+        await self.config.guild(ctx.guild).DAYS_TO_KICK_IF_NO_ACTIVITY.set(days)
+        if days == 0:
+            await ctx.send("Disabled auto-kicking")
+        else:
+            await ctx.send(f"Users will now get automatically kicked if they haven't "
+                           f"shown activity since joining for {days} days")
+
+    @genesisapps.command()
+    async def autokickmsg(self, ctx: commands.Context, *, msg: str=None) -> None:
+        """Set the message DM'd to the user when they are auto-kicked.
+        Leave blank to not send a DM"""
+
+        await self.config.guild(ctx.guild).INACTIVITY_KICK_MSG.set(msg)
+        if msg is None:
+            await ctx.send("Disabled auto-kick message")
+        else:
+            await ctx.send(f"Auto-kick message set to:\n\n{msg}")
 
     @genesisapps.command()
     async def create(self, ctx: commands.Context, member_or_member_id: MemberOrMissingMemberConverter) -> None:
