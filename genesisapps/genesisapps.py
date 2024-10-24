@@ -528,7 +528,7 @@ class GenesisApps(commands.Cog):
 
     @genesisapps.command()
     async def delete(self, ctx: commands.Context, member_or_member_id: MemberOrMissingMemberConverter) -> None:
-        """Delete an application **!!All data will be lost for this application!!**
+        """Delete an application !!All data will be lost for this application!!
         
         Applicants without the exempt role will have their applications recreated automatically once they show some activity.
         If instead you just want to make them exempt to the application process, either
