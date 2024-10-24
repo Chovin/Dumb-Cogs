@@ -203,14 +203,14 @@ class Application:
         else:
             app.displayed = True
             app.checklist = await Checklist.new(app.config.member(member).CHECKLIST, app.bot, app.guild, app.member, app)
-            app.thread = thread
+            await app.set_thread(thread)
             app.display_message = await app.thread.fetch_message(await app.config.member(member).DISPLAY_MESSAGE_ID())
             logmsg = await app.thread.fetch_message(await app.config.member(member).LOG_MESSAGE_ID())
             app.log = await Log.new(mconf.LOG, logmsg, app.thread)
             if app.closed and not app.thread.archived:
-                await app.open()
-            elif not app.closed and app.thread.archived:
                 await app.close()
+            elif not app.closed and app.thread.archived:
+                await app.open()
         
         return app
     
@@ -261,8 +261,11 @@ class Application:
             return
         if self.displayed:
             role = self.guild.get_role(await self.config.guild(self.guild).MENTION_ROLE())
-            await self.thread.send(f"{role_mention(role)} Application reopened", allowed_mentions=MENTION_EVERYONE)
-            # self.thread = await self.thread.edit(archived=False)  # .send opens it
+            if self.thread.archived == self.closed:
+                await self.thread.send(f"{role_mention(role) if role else ''} Application reopened", allowed_mentions=MENTION_EVERYONE)
+            else:
+                self.closed = False
+                await self.set_thread(await self.thread.edit(archived=False))
             await self.post_images()
             await self.send_rest_feedback()
         await self.config.member(self.member).APP_CLOSED.set(False)
@@ -274,11 +277,18 @@ class Application:
             return
         if self.displayed:
             role = self.guild.get_role(await self.config.guild(self.guild).MENTION_ROLE())
-            await self.thread.send(f"{role_mention(role)} Application closed", allowed_mentions=MENTION_EVERYONE)
-            self.thread = await self.thread.edit(archived=True)
+            if self.thread.archived == self.closed:
+                await self.thread.send(f"{role_mention(role) if role else ''} Application closed", allowed_mentions=MENTION_EVERYONE)
+            self.closed = True
+            await self.set_thread(await self.thread.edit(archived=True))
         await self.config.member(self.member).APP_CLOSED.set(True)
         self.closed = True
         self.bot.dispatch("gapps_app_closed", self)
+
+    async def set_thread(self, thread):
+        await self.config.member(self.member).THREAD_ID.set(thread.id)
+        self.thread = thread
+        self.bot.dispatch("gapps_app_thread_set", self)
 
     async def record_checklist_update(self):
         self.last_checklist_date = datetime.now()
@@ -405,8 +415,7 @@ class Application:
                 content=txt,
                 view=discord.ui.View().add_item(ChecklistSelect(self.checklist))
             )
-            await mconf.THREAD_ID.set(thread_with_message.thread.id)
-            self.thread = thread_with_message.thread
+            await self.set_thread(thread_with_message.thread)
             await mconf.DISPLAY_MESSAGE_ID.set(thread_with_message.message.id)
             self.display_message = thread_with_message.message
 

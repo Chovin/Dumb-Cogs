@@ -292,7 +292,8 @@ class GenesisApps(commands.Cog):
         
         await app.set_messages(0)
         
-        # TODO: self.thread_member_map[app.thread.id] = member
+        if app.thread:
+            self.thread_member_map[app.thread.id] = member
         
         if was_here_before:
             await self.config.member(member).STATUS.set("Joined")
@@ -336,7 +337,22 @@ class GenesisApps(commands.Cog):
         nm = self.nickname_map.setdefault(app.member.guild.id, {})
         for nick in await self.config.member(app.member).NICKNAMES():
             nm[nick] = app.member
+    
+    @commands.Cog.listener()
+    async def on_gapps_app_thread_set(self, app):
+        self.thread_member_map[app.thread] = app.member
 
+    @commands.Cog.listener()
+    async def on_thread_update(self, before: discord.Thread, after: discord.Thread):
+        # unarchive auto-archived threads
+        if after.archived:
+            try:
+                app = self.application_for(after)
+            except:
+                return
+            if not app.closed:
+                await after.edit(archived=False)
+                
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot:
@@ -483,13 +499,7 @@ class GenesisApps(commands.Cog):
         else:
             await ctx.send(f"Auto-kick message set to:\n\n{msg}")
 
-    @genesisapps.command()
-    async def create(self, ctx: commands.Context, member_or_member_id: MemberOrMissingMemberConverter) -> None:
-        """Manually create a application thread for a user
-        Note, no thread is made if the applicant is exempt
-        """
-        app = await self.get_or_set_application_for(member_or_member_id)        
-        await app.display()
+
 
     @genesisapps.command()
     async def exempt(self, ctx: commands.Context, member: discord.Member) -> None:
@@ -525,6 +535,24 @@ class GenesisApps(commands.Cog):
         
         await self.config.guild(ctx.guild).ROLE_SWAPS.set_raw(removed.id, value=added.id)
         await ctx.send(f"Now whenever {removed.mention} is removed, {added.mention} will be added")
+
+    @genesisapps.command()
+    async def open(self, ctx: commands.Context, member_or_member_id: MemberOrMissingMemberConverter) -> None:
+        """Manually open a application thread for a user
+        Note, no thread is made if the applicant is exempt
+        """
+        app = await self.get_or_set_application_for(member_or_member_id)
+        if app.thread and app.closed:  
+            await app.open()
+        await app.display()
+    
+    @genesisapps.command()
+    async def close(self, ctx: commands.Context, member_or_member_id: MemberOrMissingMemberConverter) -> None:
+        """Close an application. Note that applications will reopen if changes happen to it.
+        
+        To permanently close applications, either manually make a user exempt or give them the exempt role"""
+        app = await self.get_or_set_application_for(member_or_member_id)  
+        await app.close()
 
     @genesisapps.command()
     async def delete(self, ctx: commands.Context, member_or_member_id: MemberOrMissingMemberConverter) -> None:
