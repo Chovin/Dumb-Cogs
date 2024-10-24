@@ -435,16 +435,21 @@ class GenesisApps(commands.Cog):
                         # check if needs displaying
                         if app.update:
                             await app.display()
-                        # check for auto-kicks
-                        if joined_before_autokick:
-                            joined_naive = datetime.fromtimestamp(member.joined_at.timestamp())
-                            if joined_naive < joined_before_autokick and not await app.seen_activity():
-                                if autokick_msg:
-                                    try:
-                                        await member.send(autokick_msg)
-                                    except:
-                                        pass
-                                await member.kick(reason="inactivity auto-kick")
+                        # member is still in server
+                        if not isinstance(member, MissingMember):
+                            # keep posts' archived state synchronized with app
+                            if app.thread and (app.closed != app.thread.archived):
+                                await app.thread.edit(archived=app.closed)
+                            # check for auto-kicks
+                            if joined_before_autokick:
+                                joined_naive = datetime.fromtimestamp(member.joined_at.timestamp())
+                                if joined_naive < joined_before_autokick and not await app.seen_activity():
+                                    if autokick_msg:
+                                        try:
+                                            await member.send(autokick_msg)
+                                        except:
+                                            pass
+                                    await member.kick(reason="inactivity auto-kick")
 
                         
             except Exception as e:
