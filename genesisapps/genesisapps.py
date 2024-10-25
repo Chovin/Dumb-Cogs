@@ -309,11 +309,9 @@ class GenesisApps(commands.Cog):
         
         if was_here_before:
             await self.config.member(member).STATUS.set("Joined")
-            if app.displayed:
+            if app.displayed and len(await app.checklist.done_items()):
                 await app.display()  # opens app automatically
             await app.log.post("Joined", member.joined_at)
-            if app.displayed:
-                await app.thread.send(f"-# {member.mention} rejoined <t:{int(datetime.now().timestamp())}:R>")
         else:
             # new joins are subject to auto-kicking
             await self.config.member(member).AUTO_KICK_IMMUNITY.set(False)
