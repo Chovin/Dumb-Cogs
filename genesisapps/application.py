@@ -391,7 +391,7 @@ class Application:
             return
         role = self.guild.get_role(await self.config.guild(self.guild).MENTION_ROLE())
         multiple_nl = "\n" if len(msgs) > 1 else ''
-        await self.thread.send(f"{role_mention(role) if role else ''} {multiple_nl}" + "\n".join(msgs), allowed_mentions=MENTION_EVERYONE)
+        await self.thread.send(f"{role_mention(role) if role else ''} {self.member.mention} {multiple_nl}" + "\n".join(msgs), allowed_mentions=MENTION_EVERYONE)
 
     async def display(self):
         async with self.display_lock:
