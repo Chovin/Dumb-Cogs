@@ -3,13 +3,16 @@ from discord.errors import NotFound, HTTPException
 
 from redbot.core.bot import Red
 from redbot.core.config import Config
+from redbot.core.utils.chat_formatting import pagify
 
 from typing import Union, List
 from datetime import datetime, timedelta
 import asyncio
 
 from .checklist import Checklist, ChecklistSelect
+from .helpers import get_thread, role_mention, MissingMember, int_to_emoji
 from .statusimage import statuses
+from .wufoo import WufooDB
 
 MENTION_EVERYONE = discord.AllowedMentions(roles=True, users=True, everyone=True)
 
@@ -17,6 +20,8 @@ MENTION_EVERYONE = discord.AllowedMentions(roles=True, users=True, everyone=True
 def identifiable_name(member):
     return f"{member.display_name} ({member.name})" if member.name != member.display_name else member.name
 
+
+class MissingDB(Exception): pass
 
 class Log:
     def __init__(self, config: Config, message=None, channel=None):
@@ -136,7 +141,7 @@ class Feedback:
 
 
 class Application:
-    def __init__(self, member: discord.Member, guild: discord.Guild, config: Config, bot: Red):
+    def __init__(self, member: discord.Member, guild: discord.Guild, config: Config, bot: Red, wufooDB: WufooDB=None):
         self.guild = guild
         self.member = member
         self.config = config
@@ -145,6 +150,7 @@ class Application:
         self.display_message: discord.Message
         self.log: Log
         self.bot = bot
+        self.wufooDB = wufooDB
         self.displayed = False
         self.closed: bool
         self.feedback = []
@@ -158,10 +164,10 @@ class Application:
         self.display_lock = asyncio.Lock()
 
     @classmethod
-    async def new(cls, member: discord.Member, guild: discord.Guild, config: Config, bot: Red):
+    async def new(cls, member: discord.Member, guild: discord.Guild, config: Config, bot: Red, wufooDB: WufooDB=None):
         if member.bot:
             raise ValueError("Cannot create application for bot.")
-        app = cls(member, guild, config, bot)
+        app = cls(member, guild, config, bot, wufooDB)
 
         forum = guild.get_channel(await config.guild(guild).TRACKING_CHANNEL())
         if forum is None:
@@ -200,6 +206,12 @@ class Application:
             
             if not app.closed:
                 await app.close()
+            
+            # wufoodb not set yet
+            try:
+                await app.check_application_forms()
+            except AttributeError:
+                pass
         else:
             app.displayed = True
             app.checklist = await Checklist.new(app.config.member(member).CHECKLIST, app.bot, app.guild, app.member, app)
@@ -238,6 +250,9 @@ class Application:
                 if role.id == exempt_role:
                     return role
         return False
+    
+    def set_wufooDB(self, wufooDB):
+        self.wufooDB = wufooDB
     
     async def seen_activity(self):
         return len(await self.checklist.done_items()) > 0 or self.messages > 0
@@ -359,6 +374,90 @@ class Application:
         await self.config.member(self.member).IMAGE_MESSAGE_URLS.set(img_messages)
         await self.config.member(self.member).IMAGES.set([i.serialize() for i in self.images + images])
         self.images = self.images + images
+
+    async def post_applications(self, force=False, not_done_displaying=False):
+        try:
+            emap = self.wufooDB.member_map.get(str(self.member.id), [])
+        except AttributeError:
+            raise MissingDB
+        emap = [e for e in emap if (not e['sent']) or force]
+        if not emap:
+            return
+
+        answers = "\n".join("\n".join(answer for answer in self.wufooDB.get(e['key']).entry_values()) for e in emap)
+        to_finds = []
+        app_sent_ci = False
+        # update relavent checklist items
+        for c in await self.checklist.checklist_items():
+            ci_title = str(c.value).lower()
+            if ci_title == 'application sent':
+                c.done = True
+                await self.checklist.update_item(c)
+                app_sent_ci = True
+            elif ci_title.startswith(('used', 'contains')):
+                to_find = ci_title.split(' ', 1)[-1]
+                to_finds.append(to_find)
+                if to_find in answers:
+                    c.done = True
+                    await self.checklist.update_item(c)
+        
+        if await Application.app_exempt(self.config, self.member):
+            return
+        
+        if (not self.displayed) and not not_done_displaying:
+            await self.display()
+        elif not_done_displaying:
+            self.bot.dispatch('gapps_trigger_app_display', self)
+
+        for e in emap:
+            sent = await self.send_application(self.wufooDB.get(e['key']), to_finds)
+            e['sent'] = sent
+        
+        await self.wufooDB.save_member_map()
+
+        # log this event if there's no checklist item with the name "Application Sent"
+        if not app_sent_ci:
+            await self.log.post("Application Sent", datetime.now())
+
+    async def send_application(self, application, highlights=[]):
+        if await Application.app_exempt(self.config, self.member):
+            return False
+        # TODO: There's still the possibility that the highlight is split between messages, messing up the formatting
+        s = ""
+        i = 1
+        sent = None
+        for question, answer in application.entry_items():
+            find_is = []
+            lanswer = answer.lower()
+            for to_find in highlights:
+                try:
+                    fi = lanswer.index(to_find)
+                except:
+                    continue
+                else:
+                    find_is.append((fi, fi + len(to_find)))
+            # assumes no overlaps
+            for fi, tfi in reversed(find_is):
+                answer = answer[:fi] + "__**`" + answer[fi:tfi] + "`**__" + answer[tfi:]
+            if question == "Entry Id":
+                qa = f"**{question}**: {answer}"
+            else:
+                qa = f"\n\n**{int_to_emoji(i)}. {question}**\n{answer}"
+                i += 1
+            s += qa
+
+        first = True
+        for p in pagify(s, delims=['\n\n', '\n', ' '], priority=True, page_length=1900, escape_mass_mentions=True):
+            if first:
+                embed = discord.Embed(description=p, title="Application")
+            else:
+                embed = discord.Embed(description=p)
+            sent = sent or await self.thread.send(embed=embed)
+            first = False
+        
+        # pin first message
+        await sent.pin()
+        return True
     
     async def triggered_alarms(self):
         times = self.alarm_times()
@@ -371,6 +470,15 @@ class Application:
             "checklist": self.last_checklist_date,
             "joined": datetime.fromtimestamp(self.member.joined_at.timestamp())
         }
+
+    async def check_application_forms(self):
+        if await Application.app_exempt(self.config, self.member):
+            return
+        mm = self.wufooDB.member_map.get(str(self.member.id))
+        if not mm:
+            return
+        if len([e for e in mm if not e['sent']]):
+            await self.display()
 
     async def check_and_alarm(self):
         now = datetime.now()
@@ -461,7 +569,7 @@ class Application:
             if s['compound']:
                 action = status['compounds'].append
             else:
-                action = lambda v: status.__setitem__("single", v)
+                action = lambda v: status.__setitem__("single", str(v))
             if val == "Joined":
                 action(val)
             for ci in cis:
@@ -501,6 +609,7 @@ class Application:
             await thread_with_message.message.pin()
             await logmsg.pin()
 
+            await self.post_applications(force=True, not_done_displaying=True)
             await self.post_images(force=True)
             await self.send_rest_feedback(force=True)
 

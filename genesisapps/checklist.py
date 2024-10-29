@@ -148,6 +148,9 @@ class Checklist:
             if self.app:
                 await self.app.log.post([str(ci) for ci in cdones], datetime.now())
             await self.refresh_items()
+            if self.app:
+                await self.app.display()
+
         return cdones
 
     async def copy_from_template(self, template: dict):

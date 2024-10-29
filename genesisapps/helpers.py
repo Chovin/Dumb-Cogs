@@ -34,3 +34,19 @@ async def get_thread(forum, thread_id):
 def role_mention(role):
     return str(role) if role.id == role.guild.default_role.id else role.mention
 
+
+def int_to_emoji(n: int):
+    if n < 0:
+        raise ValueError("n must be >= 0")
+    
+    emojis = ["0️⃣","1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣"]
+    if n < 10:
+        return emojis[n]
+    
+    s = ""
+    while n > 0:
+        d = n % 10
+        n = n // 10
+        s = emojis[d] + s
+
+    return s 

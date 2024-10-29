@@ -5,13 +5,14 @@ from redbot.core import commands, checks
 from redbot.core.bot import Red
 from redbot.core.config import Config, Group
 from redbot.core.utils.predicates import MessagePredicate
+from redbot.core.utils.chat_formatting import pagify
 
 import re
 import asyncio
 from datetime import datetime, timedelta
-from typing import Union
+from typing import Union, List
 
-from .wufoo import Wufoo, FormNotFound, DiscordNameFieldNotFound, MemberNotFound
+from .wufoo import Wufoo, FormNotFound, DiscordNameFieldNotFound, Entry, WufooDB
 from .checklist import Checklist, ChecklistItem, ChecklistSelect
 from .helpers import get_thread, MissingMember
 from .application import Application, Image, identifiable_name
@@ -96,7 +97,7 @@ class GenesisApps(commands.Cog):
             "FEEDBACK": [],
             "LAST_MESSAGE_DATE": None,
             "LAST_CHECKLIST_DATE": None,
-            "TRACK_ALARMS": {kind: 0 for kind in CHECKLIST_CHOICES},
+            "TRACK_ALARMS": {kind: 0 for kind in CHECKLIST_CHOICES}
         })
 
         self.config.register_guild(**{
@@ -105,6 +106,10 @@ class GenesisApps(commands.Cog):
             "WUFOO_API_KEY": None,
             "WUFOO_FORM_URL": None,
             "WUFOO_DISCORD_USERNAME_FIELD": None,
+            "WUFOO_ALERT_CHANNEL": None,
+            "WUFOO_ENTRIES": {},
+            "WUFOO_ENTRY_QUEUE": {},
+            "WUFOO_MEMBER_MAP": {}, # TODO: rewrite with this as part of member/application...
             "CHECKLIST_TEMPLATE": {},
             "MENTION_ROLE": None,  # also mention when application complete
             "CHECKLIST_ROLES": {},  # TODO: roles that are allowed to toggle the checklist items
@@ -125,6 +130,7 @@ class GenesisApps(commands.Cog):
         self.nickname_map = {}
         self.audit_log_cache = {}
         self.ready = False
+        self.ready_lock = asyncio.Lock()
 
     def get_member(self, guild: discord.Guild, member_id: int):
         if not (member := guild.get_member(member_id)):
@@ -144,10 +150,17 @@ class GenesisApps(commands.Cog):
     def application_for(self, thing: Union[discord.Member, MissingMember, discord.Thread, str, Checklist], guild=None):
         member = self.memberify(thing, guild)
         return self.applications[member.guild.id][member.id]
+    
+    async def send_entry_queue_list(self, ctx):
+        s = '\n'.join(f"-# **{k}**. {ur}" for ur, k in self.wufoo_apis[ctx.guild.id].db.entry_queue.items())
+
+        for p in pagify("**Unlinked applications:**\n" + s):
+            await ctx.send(p)
 
     async def setup_wufoo_api(self, gid: int,  form_url: str, api_key: str, discord_name_field: str):
         self.wufoo_apis[gid] = Wufoo(form_url, api_key, discord_name_field)
-        await self.wufoo_apis[gid].setup()
+        guild = self.bot.get_guild(gid)
+        await self.wufoo_apis[gid].setup(self.bot, self.config.guild(guild), self.bot.get_guild(gid))
         return self.wufoo_apis[gid]
     
     async def setup_all_wufoo(self):
@@ -194,7 +207,16 @@ class GenesisApps(commands.Cog):
         try:
             app = self.application_for(member, guild)
         except KeyError:
-            self.set_application_for(member, app := await Application.new(member, member.guild, self.config, self.bot), guild)
+            extra = {}
+            if member.guild.id in self.wufoo_apis:
+                extra["wufooDB"] = self.wufoo_apis[member.guild.id].db
+            self.set_application_for(
+                member, 
+                app := await Application.new(
+                    member, member.guild, self.config, self.bot, **extra
+                ), 
+                guild
+            )
         return app
 
     def _set_nicknames_for(self, member, nicknames):
@@ -203,13 +225,15 @@ class GenesisApps(commands.Cog):
 
     async def _setup(self):
         if not self.ready:
-            await self.setup_applications()
-            # try:
-            #   await self.setup_all_wufoo()
-            # except AssertionError:
-            #   log.error("wufoo api failed to load")
-            await self.setup_thread_member_map()
-            await self.setup_nickname_map()
+            async with self.ready_lock:
+                await self.setup_applications()
+                await self.setup_thread_member_map()
+                await self.setup_nickname_map()
+                await self.setup_all_wufoo()
+                for gid, apps in self.applications.items():
+                    for app in apps.values():
+                        if gid in self.wufoo_apis:
+                            app.set_wufooDB(self.wufoo_apis[app.guild.id].db)
         self.ready = True
 
     @commands.Cog.listener()
@@ -355,6 +379,39 @@ class GenesisApps(commands.Cog):
         self.thread_member_map[app.thread] = app.member
 
     @commands.Cog.listener()
+    async def on_gapps_wufoo_entry_mapped(self, entries: List[Entry]):
+        entries_per_guild = {}
+        async with self.ready_lock:
+            for entry in entries:
+                app = await self.get_or_set_application_for(entry.member)
+                await app.post_applications()
+                entries_per_guild.setdefault(app.guild.id, []).append(entry)
+            for gid, entries in entries_per_guild.items():
+                guild = self.bot.get_guild(gid)
+                cid = await self.config.guild(guild).WUFOO_ALERT_CHANNEL()
+                channel = guild.get_channel(cid)
+                if not channel:
+                    log.error(f"Wufoo alert channel not set for guild: {guild.name}")
+                    continue
+                s = (
+                    "**Newly mapped application forms**\n" + 
+                    ("\n".join(f"-# **{e.key}**. **{e.username_raw}** mapped to {e.member.mention}" for e in entries))
+                )
+                for p in pagify(s, delims=["\n", " "], priority=True, page_length=1900, escape_mass_mentions=True):
+                    await channel.send(p)
+
+    @commands.Cog.listener()
+    async def on_gapps_wufoo_entry_queued(self, db: WufooDB):
+        channel = db.guild.get_channel(await self.config.guild(db.guild).WUFOO_ALERT_CHANNEL())
+        if not channel:
+            raise ValueError("Wufoo alert channel not set")
+        await self.send_entry_queue_list(channel)
+
+    @commands.Cog.listener()
+    async def on_gapps_trigger_app_display(self, app: Application):
+        await app.display()
+
+    @commands.Cog.listener()
     async def on_thread_update(self, before: discord.Thread, after: discord.Thread):
         # unarchive auto-archived threads
         if after.archived:
@@ -372,6 +429,10 @@ class GenesisApps(commands.Cog):
         
         # wave at new users is a message
         if message.is_system():
+            return
+        
+        # dms
+        if message.guild is None:
             return
 
         if not await self.config.guild(message.guild).TRACKING_CHANNEL():
@@ -427,12 +488,20 @@ class GenesisApps(commands.Cog):
             await app.display()
 
     async def display_loop(self):
+        
         day = 0
+        hour = 0
         while True:
+            if not self.ready:
+                await asyncio.sleep(5)
+                continue
+
             try:
                 now = datetime.now()
                 prev_day = day
                 day = now.day
+                prev_hour = hour
+                hour = now.hour
                 for guild_id, apps in self.applications.items():
                     guild = self.bot.get_guild(guild_id)
                     if guild is None:
@@ -460,15 +529,27 @@ class GenesisApps(commands.Cog):
                             if joined_before_autokick:
                                 joined_naive = datetime.fromtimestamp(member.joined_at.timestamp())
                                 if joined_naive < joined_before_autokick and not await app.seen_activity():
-                                    if autokick_msg:
-                                        try:
-                                            await member.send(autokick_msg)
-                                        except:
-                                            pass
-                                    await member.kick(reason="inactivity auto-kick")
+                                    if not await Application.app_exempt(self.config, member):
+                                        if autokick_msg:
+                                            try:
+                                                await member.send(autokick_msg)
+                                            except:
+                                                pass
+                                        await member.kick(reason="inactivity auto-kick")
                             # check for alarms
                             if prev_day != day and (not await Application.app_exempt(self.config, member)) and not app.closed:
                                 await app.check_and_alarm()
+
+                            if prev_hour != hour:
+                                try:
+                                    await app.check_application_forms()
+                                except AttributeError:
+                                    pass
+                
+                if prev_hour != hour:
+                    for gid, wapi in self.wufoo_apis.items():
+                        await wapi.pull_entries()
+                    
                         
             except Exception as e:
                 log.error("Error in display loop", exc_info=e)
@@ -641,6 +722,7 @@ class GenesisApps(commands.Cog):
         
         await self.config.guild(ctx.guild).APP_MEMBERS.clear_raw(f"{member_or_member_id.id}")
         await mconf.clear()
+        await self.wufoo_apis[ctx.guild.id].db.delete_member_from_member_map(member_or_member_id)        
         del self.applications[ctx.guild.id][member_or_member_id.id]
         try:
             await ctx.send(f"Application {deleted} deleted")
@@ -857,4 +939,117 @@ class GenesisApps(commands.Cog):
         await self.config.guild(ctx.guild).WUFOO_API_KEY.set(key)
         await self.config.guild(ctx.guild).WUFOO_DISCORD_USERNAME_FIELD.set(discord_username_field)
         await self.config.guild(ctx.guild).WUFOO_FORM_URL.set(form_url)
+        await self.config.guild(ctx.guild).WUFOO_ALERT_CHANNEL.set(ctx.channel.id)
         await author.send("Wufoo settings have been updated")
+        await ctx.send("Wufoo settings have been updated. Messages will be sent to this channel if a matching user can't be found for an application submitted")
+
+    @commands.group(name="wufoo", aliases=["app", "apps"])
+    @checks.mod_or_permissions(manage_guild=True)
+    async def _wufoo(self, ctx: commands.Context) -> None:
+        """Wufoo application commands"""
+
+    @_wufoo.command()
+    async def list(self, ctx: commands.Context) -> None:
+        """List applications that haven't been linked to a member yet"""
+        await self.send_entry_queue_list(ctx)
+
+    @_wufoo.command()
+    async def ignore(self, ctx: commands.Context, *, applications: str) -> None:
+        """Ignore applications from the given comma-separated list"""
+        db = self.wufoo_apis[ctx.guild.id].db
+        applications = [a.strip() for a in applications.split(",")]
+        for qk in applications:
+            try:
+                db.get_queue_entry(qk)
+            except KeyError:
+                await ctx.send(f"Could not find application: {qk}")
+                return
+        
+        await ctx.reply("Are you sure? There is no turning back (yes/no)")
+        try:
+            message = await self.bot.wait_for('message', check=MessagePredicate.same_context(channel=ctx.channel, user=ctx.author), timeout=120)
+        except asyncio.TimeoutError:
+            await ctx.send("Took too long. Please try again.")
+            return
+
+        if message.content.lower() != "yes":
+            await ctx.send("Cancelled")
+            return
+
+        await db.remove_entries(applications)
+        await ctx.reply(f"Ignored these applications")
+
+    @_wufoo.command()
+    async def link(self, ctx: commands.Context, member: discord.Member, *, application: str) -> None:
+        """Link a given application to a member. Give the member first followed by their application.
+        
+        If the application is no longer in the `[p]app list`, you must use the Entry ID to reference the application"""
+        db = self.wufoo_apis[ctx.guild.id].db
+        try:
+            db.get_queue_entry(application)
+        except KeyError:
+            await ctx.send(f"Could not find application: {application}")
+            return
+        
+        await self.get_or_set_application_for(member)
+        
+        await db.link(application, member)
+        await ctx.reply(f"Linked **{application}** to {member.mention}")
+    
+    @_wufoo.command()
+    async def linkhere(self, ctx: commands.Context, *, application: str) -> None:
+        """Link a given application to the thread that the command was used in
+
+        If the application is no longer in the `[p]app list`, you must use the Entry ID to reference the application"""
+        db = self.wufoo_apis[ctx.guild.id].db
+        try:
+            db.get_queue_entry(application)
+        except KeyError:
+            await ctx.send(f"Could not find application: {application}")
+            return 
+        
+        member = await self.get_or_set_application_for(ctx.channel)
+
+        await db.link_member(application, member)
+        await ctx.reply(f"Linked **{application}** to {ctx.author.mention}")
+
+    @_wufoo.command()
+    async def unlink(self, ctx: commands.Context, *, application: str) -> None:
+        """Unlink a given application from a member"""
+        db = self.wufoo_apis[ctx.guild.id].db
+
+        if application not in db.entries:
+            await ctx.send(f"Could not find application. Make sure to use the Entry ID.")
+            return
+
+        removed_from = await db.unlink(application)
+        if not removed_from:
+            removed_from = ["MissingMember"]
+        else:
+            removed_from = [r.mention for r in removed_from]
+        await ctx.reply(f"Unlinked **{application}** from " + (",".join(removed_from)))
+    
+    @_wufoo.command()
+    async def requeue(self, ctx: commands.Context, *, application: str) -> None:
+        """Requeue a given application"""
+        db = self.wufoo_apis[ctx.guild.id].db
+
+        if application not in db.entries:
+            await ctx.send(f"Could not find application. Make sure to use the Entry ID.")
+            return
+        
+        removed_from = await db.unlink(application)
+        if not removed_from:
+            removed_from = ["MissingMember"]
+        else:
+            removed_from = [r.mention for r in removed_from]
+        await db.unlink(application, enqueue=True)
+        await ctx.reply(f"Requeued **{application}** from " + (",".join(removed_from)))
+
+    @_wufoo.command()
+    async def check(self, ctx: commands.Context) -> None:
+        """Check for new applications. Note, this shouldn't be used too often as we can only make 100 accesses to the API a day"""
+        msg = await ctx.send("Checking Wufoo for more applications...")
+        await self.wufoo_apis[ctx.guild.id].pull_entries()
+        await msg.edit(content="Done")
+        
