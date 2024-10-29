@@ -4,12 +4,12 @@ from discord.errors import NotFound, HTTPException
 from redbot.core.bot import Red
 from redbot.core.config import Config
 
-from typing import Union
+from typing import Union, List
 from datetime import datetime, timedelta
 import asyncio
 
 from .checklist import Checklist, ChecklistSelect
-from .helpers import get_thread, role_mention, MissingMember
+from .statusimage import statuses
 
 MENTION_EVERYONE = discord.AllowedMentions(roles=True, users=True, everyone=True)
 
@@ -237,7 +237,7 @@ class Application:
             for role in member.roles:
                 if role.id == exempt_role:
                     return role
-        return False    
+        return False
     
     async def seen_activity(self):
         return len(await self.checklist.done_items()) > 0 or self.messages > 0
@@ -334,7 +334,7 @@ class Application:
         
         await self.config.member(self.member).FEEDBACK.set([f.serialize() for f in self.feedback])
 
-    async def post_images(self, images: Image=[], force=False):
+    async def post_images(self, images: List[Image]=[], force=False):
         ims = []
         if force:
             await self.config.member(self.member).IMAGE_MESSAGE_URLS.set([])
@@ -359,6 +359,18 @@ class Application:
         await self.config.member(self.member).IMAGE_MESSAGE_URLS.set(img_messages)
         await self.config.member(self.member).IMAGES.set([i.serialize() for i in self.images + images])
         self.images = self.images + images
+    
+    async def triggered_alarms(self):
+        times = self.alarm_times()
+        track_alarms = await self.config.member(self.member).TRACK_ALARMS()
+        return [kind for kind in times if times[kind].timestamp() == track_alarms[kind]]
+
+    def alarm_times(self):
+        return {
+            "message": self.last_message_date,
+            "checklist": self.last_checklist_date,
+            "joined": datetime.fromtimestamp(self.member.joined_at.timestamp())
+        }
 
     async def check_and_alarm(self):
         now = datetime.now()
@@ -367,16 +379,12 @@ class Application:
             for kind, days in (await self.config.guild(self.guild).ALARMS()).items()
             if days > 0
         }
-        times = {
-            "message": self.last_message_date,
-            "checklist": self.last_checklist_date,
-            "joined": datetime.fromtimestamp(self.member.joined_at.timestamp())
-        }
+        times = self.alarm_times()
         # ignore alarms that have already gone off
         mconf = self.config.member(self.member)
         track_alarms = await mconf.TRACK_ALARMS()
         for kind, timestamp in track_alarms.items():
-            if datetime.fromtimestamp(timestamp) == times[kind]:
+            if datetime.fromtimestamp(timestamp) == times.get(kind):
                 del times[kind]
         offenses = []
         for kind, before_date in alarms_before.items():
@@ -385,6 +393,8 @@ class Application:
         if offenses:
             await self.notify(*[f"<t:{int(times[o].timestamp())}:R> since last {o}{' item' if o == 'checklist' else ''}" for o in offenses])
             await mconf.TRACK_ALARMS.set({**track_alarms, **{o: times[o].timestamp() for o in offenses}})
+            if self.displayed:
+                await self.display()
 
     async def notify(self, *msgs):
         if not self.displayed:
@@ -435,6 +445,38 @@ class Application:
 
         mconf = self.config.member(self.member)
 
+        # attachments
+        simgs = await self.config.guild(self.guild).STATUS_IMAGES()
+        stats = await statuses(mconf)
+        status = {
+            "single": None,
+            "compounds": []
+        }
+        cis = await self.checklist.checklist_items()
+        triggered_alarms = await self.triggered_alarms()
+        for s in stats:
+            val = s['value']
+            if str(val) not in simgs:
+                continue
+            if s['compound']:
+                action = status['compounds'].append
+            else:
+                action = lambda v: status.__setitem__("single", v)
+            if val == "Joined":
+                action(val)
+            for ci in cis:
+                if ci.value == val and ci.done:
+                    action(val)
+                    break
+            for alarm in triggered_alarms:
+                if alarm == val:
+                    action(val)
+                    break
+
+        paths = [simgs[s] for s in filter(None, reversed([status['single'], *status['compounds']]))]
+
+        files = [discord.File(p) for p in paths][:10]
+
         forum = self.guild.get_channel(await self.config.guild(self.guild).TRACKING_CHANNEL())
 
         thread_id = await mconf.THREAD_ID()
@@ -444,6 +486,7 @@ class Application:
             thread_with_message = await forum.create_thread(
                 name=name,
                 content=txt,
+                files=files,
                 view=discord.ui.View().add_item(ChecklistSelect(self.checklist))
             )
             await self.set_thread(thread_with_message.thread)
@@ -469,7 +512,7 @@ class Application:
             log_msg = await self.log.post([], datetime.now())
             if old_log_id != log_msg.id:
                 await mconf.LOG_MESSAGE_ID.set(log_msg.id)
-            new_msg = await self.display_message.edit(content=txt)
+            new_msg = await self.display_message.edit(content=txt, attachments=files)
 
         self.displayed = True
         await self.config.member(self.member).UPDATE.set(False)

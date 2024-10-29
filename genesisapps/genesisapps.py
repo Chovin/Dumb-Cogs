@@ -16,6 +16,7 @@ from .checklist import Checklist, ChecklistItem, ChecklistSelect
 from .helpers import get_thread, MissingMember
 from .application import Application, Image, identifiable_name
 from .expiringdict import ExpiringDict
+from .statusimage import StatusImage, statuses
 from .log import log
 
 
@@ -23,8 +24,8 @@ RE_API_KEY = re.compile(r"^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0
 
 CHECKLIST_CHOICES = [
     "message",
+    "checklist",
     "joined",
-    "checklist"
 ]
 
 class MemberOrMissingMemberConverter(commands.Converter):
@@ -106,8 +107,9 @@ class GenesisApps(commands.Cog):
             "WUFOO_DISCORD_USERNAME_FIELD": None,
             "CHECKLIST_TEMPLATE": {},
             "MENTION_ROLE": None,  # also mention when application complete
-            "CHECKLIST_ROLES": {},  # roles that are allowed to toggle the checklist items
+            "CHECKLIST_ROLES": {},  # TODO: roles that are allowed to toggle the checklist items
             "ROLE_SWAPS": {},
+            "STATUS_IMAGES": {},
             "APPLICATION_EXEMPT_ROLE": None,
             "ALARMS": {kind: 0 for kind in CHECKLIST_CHOICES},
             "DAYS_TO_KICK_IF_NO_ACTIVITY": 0,
@@ -128,7 +130,7 @@ class GenesisApps(commands.Cog):
         if not (member := guild.get_member(member_id)):
             member = MissingMember(member_id, guild)
         return member
-        
+    
     def memberify(self, thing: Union[discord.Member, MissingMember, discord.Thread, str, Checklist], guild=None):
         member = thing
         if isinstance(thing, str):
@@ -744,6 +746,61 @@ class GenesisApps(commands.Cog):
         cl = Checklist(self.config.guild(ctx.guild).CHECKLIST_TEMPLATE, self.bot, ctx.guild)
         await cl.remove_item(await cl.get_item(number - 1))
         await ctx.send(f"Removed checklist item. Checklist is now:\n {await cl.to_str()}")
+
+    @genesisapps.command()
+    async def image(self, ctx: commands.Context):
+        """Upload images to be used in displaying app thread states"""
+        if not ctx.message.attachments:
+            await ctx.send("Please send an image in the same message as you use this command")
+            return
+        if len(ctx.message.attachments) > 1:
+            await ctx.send("Please send only one image")
+            return
+        
+        att = ctx.message.attachments[0]
+
+        alarms = await self.config.guild(ctx.guild).ALARMS()
+        stats = {}
+        statsli = []
+        for s in await statuses(self.config.guild(ctx.guild)):
+            if not alarms.get(s['value'], 1):
+                continue
+            if s.get("type") == "role":
+                role = ctx.guild.get_role(s['value'])
+                if not role:
+                    continue
+                s['display'] = f"{role.mention} acquired"
+            if 'display' not in s:
+                s['display'] = str(s['value'])
+            stats[s['display'].lower()] = s
+            statsli.append(s)
+        await ctx.reply(
+            "Which status do you want to set this image for?\n " +
+            "\n ".join(f"{i+1}. {s['display']}" for i, s in enumerate(statsli)))
+
+        try:
+            message = await self.bot.wait_for("message", timeout=60, check=MessagePredicate.same_context(channel=ctx.channel, user=ctx.author))
+        except asyncio.TimeoutError:
+            await ctx.send("Took too long")
+            return
+        
+        for i in range(len(statsli)):
+            stats[i] = statsli[i]
+
+        status = message.content.lower()
+        try:
+            status = int(status.split('.')[0]) - 1
+        except:
+            pass
+
+        try:
+            status = stats[status]
+        except:
+            await ctx.send("Invalid status. Please try again and respond with a number or the full status")
+            return
+        
+        await StatusImage.new(self, ctx.guild, self.config, status['value'], att)
+        await ctx.send(f"Image for {status['display']} set to {ctx.message.attachments[0].url}")
 
     @genesisapps.command()
     async def mentionrole(self, ctx: commands.Context, role_or_everyone: discord.Role = None) -> None:
