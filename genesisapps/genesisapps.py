@@ -65,6 +65,10 @@ class AlarmConverter(commands.Converter):
 
 
 class GenesisApps(commands.Cog):
+    """Application management and tracking for the Genesis server. 
+    
+    Creates a thread for each applicant to track their progress.
+    Integrates with Wufoo forms"""
     def __init__(self, bot: Red):
         self.bot = bot
         self.config = Config.get_conf(
