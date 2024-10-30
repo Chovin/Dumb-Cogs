@@ -564,16 +564,6 @@ class GenesisApps(commands.Cog):
         """GenesisApps setup commands"""
 
     @genesisapps.command()
-    async def autokickimmune(self, ctx: commands.Context, member: discord.Member) -> None:
-        """Toggle whether or not a user is immune to inactivity auto-kicking"""
-        setting = not await self.config.member(member).AUTO_KICK_IMMUNITY()
-        await self.config.member(member).AUTO_KICK_IMMUNITY.set(setting)
-        if setting:
-            await ctx.send(f"{member.mention} is now immune to inactivity auto-kicking")
-        else:
-            await ctx.send(f"{member.mention} is no longer immune to inactivity auto-kicking")
-
-    @genesisapps.command()
     async def autokick(self, ctx: commands.Context, days: int) -> None:
         """Set the number of days of no activity before a user is auto-kicked.
         
@@ -627,24 +617,6 @@ class GenesisApps(commands.Cog):
             await ctx.send(f"Disabled alarm for {alarm}")
         else:
             await ctx.send(f"An alarm will now go off if {days} days have passed since last {alarm}")
-
-    @genesisapps.command()
-    async def exempt(self, ctx: commands.Context, member: discord.Member) -> None:
-        """Toggle a user's exemption to the application process. 
-        Users that are exempt are still tracked, but their application thread isn't updated
-        and no actions are taken based on their application"""
-        role_found = await Application.has_exempt_role(self.config, member)
-        
-        exempt = not await Application.has_manual_exempt(self.config, member)
-        await Application.set_manual_exempt(self.config, member, exempt)
-        if exempt:
-            await ctx.send(f"{member.mention} is now exempt from the application process")
-        else:
-            await ctx.send(f"{member.mention} is no longer exempt from the application process")
-        if role_found:
-            await ctx.send(f"Although, this user already has the **{role_found.name}** role. Regardless of this setting, the user will already be exempt.")
-        if exempt or role_found:
-            await (await self.get_or_set_application_for(member)).close()
     
     @genesisapps.command()
     async def exemptrole(self, ctx: commands.Context, role: discord.Role) -> None:
@@ -731,35 +703,8 @@ class GenesisApps(commands.Cog):
             await ctx.send(f"Application {deleted} deleted")
         except NotFound:
             pass
-    
-    @genesisapps.command(aliases=["nickname"])
-    async def nick(self, ctx: commands.Context, member: discord.Member, *nicknames: str) -> None:
-        """Set nicknames for a user
-        
-        When users use one of these nicknames in 
-        """
-        try:
-            app = await self.get_or_set_application_for(member)
-        except:
-            await ctx.send(f"There is no application for {member.mention}")
-            return
-        
-        oldnicks = await self.config.member(member).NICKNAMES()
-        await self.config.member(member).NICKNAMES.set(nicknames)
 
-        if not app.closed:
-            self._set_nicknames_for(member, nicknames)
-
-        if oldnicks:
-            await ctx.send(
-                f"Nicknames for {member.mention} have been changed from\n"
-                f"{', '.join(oldnicks)}\nto\n{', '.join(nicknames)}"
-            )
-        else:
-            await ctx.send(f"Nicknames for {member.mention} have been set to {', '.join(nicknames)}")
-
-
-    @genesisapps.command()
+    @genesisapps.command(aliases=["trackingforum", "trackingchannel"])
     async def trackforum(self, ctx: commands.Context, channel: discord.ForumChannel = None) -> None:
         """Set the forum channel to create applicant tracking threads in"""
 
@@ -946,7 +891,7 @@ class GenesisApps(commands.Cog):
         await author.send("Wufoo settings have been updated")
         await ctx.send("Wufoo settings have been updated. Messages will be sent to this channel if a matching user can't be found for an application submitted")
 
-    @commands.group(name="wufoo", aliases=["app", "apps"])
+    @commands.group(name="wufoo")
     @checks.mod_or_permissions(manage_guild=True)
     async def _wufoo(self, ctx: commands.Context) -> None:
         """Wufoo application commands"""
@@ -1055,4 +1000,62 @@ class GenesisApps(commands.Cog):
         msg = await ctx.send("Checking Wufoo for more applications...")
         await self.wufoo_apis[ctx.guild.id].pull_entries()
         await msg.edit(content="Done")
+    
+    @commands.group(aliases=["apps", "app"])
+    @checks.mod_or_permissions(manage_guild=True)
+    async def application(self, ctx: commands.Context) -> None:
+        """Application modding commands"""
+
+    @application.command(aliases=["nickname"])
+    async def nick(self, ctx: commands.Context, member: discord.Member, *nicknames: str) -> None:
+        """Set nicknames for a user
         
+        When users use one of these nicknames in 
+        """
+        try:
+            app = await self.get_or_set_application_for(member)
+        except:
+            await ctx.send(f"There is no application for {member.mention}")
+            return
+        
+        oldnicks = await self.config.member(member).NICKNAMES()
+        await self.config.member(member).NICKNAMES.set(nicknames)
+
+        if not app.closed:
+            self._set_nicknames_for(member, nicknames)
+
+        if oldnicks:
+            await ctx.send(
+                f"Nicknames for {member.mention} have been changed from\n"
+                f"{', '.join(oldnicks)}\nto\n{', '.join(nicknames)}"
+            )
+        else:
+            await ctx.send(f"Nicknames for {member.mention} have been set to {', '.join(nicknames)}")
+
+    @application.command()
+    async def autokickimmune(self, ctx: commands.Context, member: discord.Member) -> None:
+        """Toggle whether or not a user is immune to inactivity auto-kicking"""
+        setting = not await self.config.member(member).AUTO_KICK_IMMUNITY()
+        await self.config.member(member).AUTO_KICK_IMMUNITY.set(setting)
+        if setting:
+            await ctx.send(f"{member.mention} is now immune to inactivity auto-kicking")
+        else:
+            await ctx.send(f"{member.mention} is no longer immune to inactivity auto-kicking")
+
+    @application.command()
+    async def exempt(self, ctx: commands.Context, member: discord.Member) -> None:
+        """Toggle a user's exemption to the application process. 
+        Users that are exempt are still tracked, but their application thread isn't updated
+        and no actions are taken based on their application"""
+        role_found = await Application.has_exempt_role(self.config, member)
+        
+        exempt = not await Application.has_manual_exempt(self.config, member)
+        await Application.set_manual_exempt(self.config, member, exempt)
+        if exempt:
+            await ctx.send(f"{member.mention} is now exempt from the application process")
+        else:
+            await ctx.send(f"{member.mention} is no longer exempt from the application process")
+        if role_found:
+            await ctx.send(f"Although, this user already has the **{role_found.name}** role. Regardless of this setting, the user will already be exempt.")
+        if exempt or role_found:
+            await (await self.get_or_set_application_for(member)).close()
