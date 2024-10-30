@@ -1,0 +1,32 @@
+{
+    "$schema": "https://raw.githubusercontent.com/Cog-Creators/Red-DiscordBot/V3/develop/schema/red_cog.schema.json",
+    "name": "GenesisApps",
+    "short": "Eases the application process for the Genesis server",
+    "description": "Adds tools to ease the application process for the Genesis server. This includes Wufoo form integration and a customizable application checklist",
+    "end_user_data_statement": "This cog reposts images, messages, and join/leave dates in forum posts setup by the server admins",
+    "install_msg": "GenesisApps has been installed! Check out the help ([p]help GenesisApps) for more information.",
+    "author": [
+        "chovin (irdumb)"
+    ],
+    "required_cogs": {},
+    "requirements": [
+        "git+https://github.com/Chovin/pyfoo.git",
+        "tldextract"
+    ],
+    "tags": [
+        "wufoo",
+        "application",
+        "tool",
+        "quality of life",
+        "forum",
+        "tracking",
+        "form",
+        "inactivity",
+        "alarm",
+        "kick"
+    ],
+    "min_bot_version": "3.5.0",
+    "hidden": true,
+    "disabled": false,
+    "type": "COG"
+}
