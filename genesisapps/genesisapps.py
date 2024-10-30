@@ -851,11 +851,25 @@ class GenesisApps(commands.Cog):
         await ctx.send(f"Mention role is set to {mention}")
 
     @genesisapps.command()
-    async def wufoo(self, ctx: commands.Context, form_url: str) -> None:
+    async def wufoo(self, ctx: commands.Context, form_url: str=None) -> None:
         """Setup Wufoo-related settings
         
         form_url should be the url to the Wufoo form"""
+        if not form_url:
+            await self.config.guild(ctx.guild).WUFOO_FORM_URL.set(None)
+            await self.config.guild(ctx.guild).WUFOO_API_KEY.set(None)
+            await self.config.guild(ctx.guild).WUFOO_DISCORD_USERNAME_FIELD.set(None)
+            await self.config.guild(ctx.guild).WUFOO_ALERT_CHANNEL.set(None)
+            del self.wufoo_apis[ctx.guild.id]
+            await ctx.send("Wufoo integration has been unset")
+            return
         
+        tracking_channel = await self.config.guild(ctx.guild).TRACKING_CHANNEL()
+        checklist = await self.config.guild(ctx.guild).CHECKLIST_TEMPLATE()
+        if tracking_channel is None or not checklist:
+            await ctx.send("Please set a tracking forum and your checklist items first")
+            return
+
         author = ctx.author
         await author.send("Please send your Wufoo API key")
         await ctx.send("A message has been sent to you in a DM. Please respond with your Wufoo API key")
