@@ -528,7 +528,10 @@ class GenesisApps(commands.Cog):
                             # check for auto-kicks
                             if joined_before_autokick:
                                 joined_naive = datetime.fromtimestamp(member.joined_at.timestamp())
-                                if joined_naive < joined_before_autokick and not await app.seen_activity():
+                                if (joined_naive < joined_before_autokick and 
+                                    (not await app.seen_activity()) and
+                                    not await self.config.member(member).AUTO_KICK_IMMUNITY()
+                                ):
                                     if not await Application.app_exempt(self.config, member):
                                         if autokick_msg:
                                             try:
@@ -563,8 +566,8 @@ class GenesisApps(commands.Cog):
     @genesisapps.command()
     async def autokickimmune(self, ctx: commands.Context, member: discord.Member) -> None:
         """Toggle whether or not a user is immune to inactivity auto-kicking"""
-        setting = not await self.config.member(member).AUTO_KICK_IMMUNE()
-        await self.config.member(member).AUTO_KICK_IMMUNE.set(setting)
+        setting = not await self.config.member(member).AUTO_KICK_IMMUNITY()
+        await self.config.member(member).AUTO_KICK_IMMUNITY.set(setting)
         if setting:
             await ctx.send(f"{member.mention} is now immune to inactivity auto-kicking")
         else:
