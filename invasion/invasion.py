@@ -69,6 +69,7 @@ class Invasion(commands.Cog):
         self.enemy_paths = self.load_enemies()
         self.tasks = {}
         self.invasions = {}
+        self._init_task = None
 
     def load_enemies(self) -> None:
         enemies_path = bundled_data_path(self) / "enemies"
@@ -76,16 +77,34 @@ class Invasion(commands.Cog):
         return enemy_paths
         
     async def cog_load(self) -> None:
-        await self.bot.wait_until_ready()
         await super().cog_load()
-        for guild_id in await self.config.all_guilds():
-            self.initiate_invasion(self.bot.get_guild(guild_id))
-        return 
+        # Start initialization as a background task
+        self._init_task = asyncio.create_task(self._initialize_guilds())
 
+    async def _initialize_guilds(self) -> None:
+        """Initialize invasion checks for all guilds in a background task"""
+        await self.bot.wait_until_ready()
+        guild_ids = await self.config.all_guilds()
+        for guild_id in guild_ids:
+            guild = self.bot.get_guild(guild_id)
+            if guild:
+                self.initiate_invasion(guild)
+         
     async def cog_unload(self) -> None:
+
+        # Cancel the initialization task if it's still running
+        if self._init_task and not self._init_task.done():
+            self._init_task.cancel()
+            try:
+                await self._init_task
+            except asyncio.CancelledError:
+                pass
+                
+               # Cancel all invasion tasks  
         for guild_id, task in [*self.tasks.items()]:
             guild = self.bot.get_guild(guild_id)
             self._cancel_invasion_check(guild)
+            
         return await super().cog_unload()
 
     async def on_guild_join(self, guild: discord.Guild) -> None:

@@ -249,6 +249,9 @@ class HammerTime(commands.Cog):
     async def on_message(self, message):
         if message.author == self.bot.user:
             return
+
+        if message.guild is None:
+            return
         
         if not await self.config.guild(message.guild).AUTO_TIME():
             return
