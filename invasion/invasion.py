@@ -62,13 +62,21 @@ class Invasion(commands.Cog):
             "BOMB_DMG": 4,
             "PROVOKE_COOLDOWN_MINUTES": 5,
             "WARNING_MINUTES": 5,
-            "NEXT_PROVOKE": datetime.datetime.now().timestamp()
+            "NEXT_PROVOKE": datetime.datetime.now().timestamp(),
+            "MESSAGES_SENT_THRESHOLD": 5,
+            "UNIQUE_USERS_THRESHOLD": 3,
+            "SENT_WITHIN_SECONDS": 90,
+            "MIN_SECONDS_AFTER_THRESHOLD": 30,
+            "MAX_SECONDS_AFTER_THRESHOLD": 60*5
         })
 
         #TODO: put enemy stats and arrival weights into guild config (load initial from stats.json)
         self.enemy_paths = self.load_enemies()
         self.tasks = {}
         self.invasions = {}
+        self.messages = {}
+        self.passing_channels = {}
+        self.guild_passed = {}
         self._init_task = None
 
     def load_enemies(self) -> None:
@@ -112,7 +120,67 @@ class Invasion(commands.Cog):
     
     async def on_guild_remove(self, guild: discord.Guild) -> None:
         self._cancel_invasion_check(guild)
-    
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message) -> None:
+        if message.author.bot:
+            return
+        
+        if message.guild is None:
+            return
+        
+        if message.channel.id not in await self.config.guild(message.guild).ENABLED_CHANNELS():
+            return
+        
+        nmessages = await self.config.guild(message.guild).MESSAGES_SENT_THRESHOLD()
+        # 0 is disabled
+        if nmessages == 0:
+            self.passing_channels[message.channel.id] = False
+            self.guild_passed.setdefault(message.guild.id, asyncio.Event()).clear()
+            return
+        
+        unique_users = await self.config.guild(message.guild).UNIQUE_USERS_THRESHOLD()
+        seconds_within = await self.config.guild(message.guild).SENT_WITHIN_SECONDS()
+
+        q = self.messages.setdefault(message.channel.id, [])
+        q.append(message)
+
+        passing = self.meets_threshold(q, unique_users, seconds_within or float('inf'), nmessages)
+        self.passing_channels[message.channel.id] = passing
+        if passing:
+            self.guild_passed.setdefault(message.guild.id, asyncio.Event()).set()
+        else:
+            self.guild_passed.setdefault(message.guild.id, asyncio.Event()).clear()
+        
+        await asyncio.sleep(seconds_within or 30)
+        q.pop(0)
+
+        if self.meets_threshold(q, unique_users, seconds_within or float('inf'), nmessages):
+            self.guild_passed.setdefault(message.guild.id, asyncio.Event()).set()
+        else:
+            self.guild_passed.setdefault(message.guild.id, asyncio.Event()).clear()
+
+    def meets_threshold(self, q, unique_users, seconds_within, nmessages):
+        if (not q) and nmessages:
+            return False
+        ets = q[-1].created_at.timestamp()
+        i = 0
+        # expand as far as we can from the most recent message
+        while ets - q[i].created_at.timestamp() > seconds_within:
+            i += 1
+        i = max(i-1, 0)
+        nq = q[i:]
+        # number of messages
+        if len(nq) < nmessages:
+            return False
+        # unique authors
+        if len(set([m.author.id for m in nq])) < unique_users:
+            return False
+        # amount of time that's passed
+        if ets - nq[0].created_at.timestamp() > seconds_within:
+            return False
+        return True
+
     def initiate_invasion(self, guild: discord.Guild, now=False) -> None:
         """Starts an eventual invasion in the guild if there isn't an enemy attacking already"""
         # enemy = random.choices(enemies, weights=[e.arrival_weight for e in enemies])[0]
@@ -215,6 +283,21 @@ class Invasion(commands.Cog):
             provoke_cooldown = settings['PROVOKE_COOLDOWN_MINUTES']
             warning_time = settings['WARNING_MINUTES']
             warning_setting = f"**Warning time**: {warning_time} minutes"
+            message_threshold = settings['MESSAGES_SENT_THRESHOLD']
+            unique_users = settings['UNIQUE_USERS_THRESHOLD']
+            sent_within = settings['SENT_WITHIN_SECONDS']
+            min_seconds = settings['MIN_SECONDS_AFTER_THRESHOLD']
+            max_seconds = settings['MAX_SECONDS_AFTER_THRESHOLD']
+            if sent_within == 0:
+                sent_within = "infinite"
+            if message_threshold == 0:
+                message_setting = "**Message threshold**: no threshold"
+            else:
+                message_setting = (
+                    f"**Message threshold**: {message_threshold} messages sent within "
+                    f"{sent_within} seconds of each other by {unique_users} users\n"
+                    f"**Starts after threshold**: {min_seconds} to {max_seconds} seconds"
+                )
             if warning_time == 0:
                 warning_setting = "**Warning time**: no warning"
 
@@ -233,7 +316,8 @@ class Invasion(commands.Cog):
                     f"**Bomb cost**: {bomb_cost}\n"
                     f"**Bomb damage multiplier**: {bomb_dmg}x\n"
                     f"**Provoke cooldown**: {provoke_cooldown} minutes\n" +
-                    warning_setting
+                    f"{warning_setting}\n" +
+                    message_setting
                 ),
                 colour=discord.Colour.blue()
             )
@@ -457,4 +541,51 @@ class Invasion(commands.Cog):
             await ctx.send(f"A warning will now be sent {minutes} minutes before an invasion starts.")
         else:
             await ctx.send("No warning will be sent before an invasion starts.")
+    
+    @invasion.command(name="messages")
+    async def _messages(self, ctx: commands.Context, messages: int, users: int, seconds: int) -> None:
+        """Set the minimum total number of messages sent, 
+        how many unique users needed to send those messages, 
+        and the amount of seconds they need to be sent within before an invasion can start
+
+        Note with this setting set, if you have multiple channels unprotected, 
+        the most active one will most likely be the one where all the invasions occur
+        since when the next invasion is ready it waits for the first time this message threshold is met
         
+        Set `messages` to 0 to disable this.
+        Set `seconds` to 0 to disable messages needing to be sent within a time period
+        This plays with the `[p]invasion immanent` command"""
+
+        if messages < 0 or seconds < 0 or users < 0:
+            await ctx.send("The number of messages, unique users, and the time period must be greater than or equal to 0.")
+            return
+        if users == 0:
+            users = 1
+        
+        await self.config.guild(ctx.guild).MESSAGES_SENT_THRESHOLD.set(messages)
+        await self.config.guild(ctx.guild).UNIQUE_USERS_THRESHOLD.set(users)
+        await self.config.guild(ctx.guild).SENT_WITHIN_SECONDS.set(seconds)
+        self.messages = {}  # reset queues
+        if messages == 0:
+            await ctx.send("Invasions will now disregard whether or not messages are being sent in order to trigger them.")
+        else:
+            await ctx.send(f"Now {messages} total messages must be sent by at least {users} unique users within {seconds if seconds else 'infinite'} seconds of each other in order to start an invasion.")
+        
+    @invasion.command()
+    async def immanent(self, ctx: commands.Context, min_seconds: int, max_seconds: int=None) -> None:
+        """Set the minumum and maximum amount of seconds that need to pass after the message threshold is met (set with `[p]invasion messages`) before an invasion happens
+        
+        Set to 0 to have invasions start immediately after the message threshold is met"""
+
+        if not max_seconds:
+            max_seconds = min_seconds
+        if min_seconds < 0 or max_seconds < min_seconds:
+            await ctx.send("The minimum seconds must be greater than or equal to 0 and the "
+                           "maximum seconds must be greater than or equal to the minimum seconds.")
+            return
+        await self.config.guild(ctx.guild).MIN_SECONDS_AFTER_THRESHOLD.set(min_seconds)
+        await self.config.guild(ctx.guild).MAX_SECONDS_AFTER_THRESHOLD.set(max_seconds)
+        if min_seconds == 0:
+            await ctx.send("Invasions will now start immediately after the message threshold is met.")
+        else:
+            await ctx.send(f"Invasions will now start between {min_seconds} and {max_seconds} seconds after the message threshold is met")
