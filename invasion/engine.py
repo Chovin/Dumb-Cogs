@@ -23,6 +23,8 @@ class InvasionCheckLoop:
     def __init__(self, cog: commands.Cog, guild: discord.Guild, enemy_paths: List[Path]):
         self.config = cog.config
         self.bot = cog.bot
+        self.passing_channels = cog.passing_channels
+        self.guild_passed = cog.guild_passed
         self.guild = guild
         self.enemy_paths = enemy_paths
         self.enemy_stubs = {p: Enemy(p, 1.5, 3) for p in enemy_paths}
@@ -74,10 +76,22 @@ class InvasionCheckLoop:
             sleep_for_seconds = (next_visit - datetime.datetime.now()).total_seconds()
             await asyncio.sleep(sleep_for_seconds)
 
+        available_channels = settings['ENABLED_CHANNELS']
+
+        # message threshold set. wait for message threshold to be hit
+        if await self.config.guild(self.guild).MESSAGES_SENT_THRESHOLD():
+            available_channels = []
+            while not available_channels:
+                await self.guild_passed.setdefault(self.guild.id, asyncio.Event()).wait()
+                available_channels = [cid for cid in settings['ENABLED_CHANNELS'] if self.passing_channels[cid]]
+            min_secs = await self.config.guild(self.guild).MIN_SECONDS_AFTER_THRESHOLD()
+            max_secs = await self.config.guild(self.guild).MAX_SECONDS_AFTER_THRESHOLD()
+            await asyncio.sleep(random.random() * (max_secs - min_secs) + min_secs)
+
         self.ongoing = True
         
         settings = await self.config.guild(self.guild).all()
-        channel = self.guild.get_channel(random.choice(settings['ENABLED_CHANNELS']))
+        channel = self.guild.get_channel(random.choice(available_channels))
         mention_role = self.guild.get_role(settings["MENTION_ROLE"])
 
         warning_mins = settings['WARNING_MINUTES']
