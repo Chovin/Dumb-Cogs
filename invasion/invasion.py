@@ -115,9 +115,11 @@ class Invasion(commands.Cog):
             
         return await super().cog_unload()
 
+    @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild) -> None:
         self.initiate_invasion(guild)
     
+    @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:
         self._cancel_invasion_check(guild)
 
