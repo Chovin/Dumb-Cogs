@@ -1,0 +1,24 @@
+{
+    "$schema": "https://raw.githubusercontent.com/Cog-Creators/Red-DiscordBot/V3/develop/schema/red_cog.schema.json",
+    "name": "SortingHat",
+    "short": "Have people sort themselves into roles",
+    "description": "People use a command to sort themselves into one of several customizable roles. The role membership can be set to have a balanced distribution",
+    "end_user_data_statement": "This cog does not persistently store any data or metadata about users.",
+    "install_msg": "Use the command [p]SortingHat to get more info about how to use this cog.",
+    "author": [
+        "chovin (irdumb)"
+    ],
+    "required_cogs": {},
+    "requirements": [],
+    "tags": [
+        "tool",
+        "util",
+        "roles",
+        "self",
+        "assign"
+    ],
+    "min_bot_version": "3.5.0",
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}
