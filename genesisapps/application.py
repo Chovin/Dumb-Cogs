@@ -202,7 +202,8 @@ class Application:
             # create log
             app.log = await Log.new(mconf.LOG)
             if len(app.log) == 0:
-                await app.log.post("Joined", member.joined_at)
+                if not isinstance(member, MissingMember):
+                    await app.log.post("Joined", member.joined_at)
             
             if not app.closed:
                 await app.close()
