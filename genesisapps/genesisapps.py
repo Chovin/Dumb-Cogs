@@ -569,7 +569,7 @@ class GenesisApps(commands.Cog):
             await asyncio.sleep(60*10)
 
     @commands.group(aliases=["gapps"])
-    @checks.admin_or_permissions(manage_guild=True)
+    @checks.mod_or_permissions(manage_guild=True)
     async def genesisapps(self, ctx: commands.Context) -> None:
         """GenesisApps setup commands"""
 
