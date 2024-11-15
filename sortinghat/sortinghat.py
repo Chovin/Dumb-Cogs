@@ -213,7 +213,7 @@ class School():
     
     async def pagified_members(self):
         await self.update_members()
-        pages = [*pagify("\n".join(f"-# {m.mention}" for m in self.role.members*50), ["\n"], page_length=500)]
+        pages = [*pagify("\n".join(f"-# {m.mention}" for m in self.role.members), ["\n"], page_length=500)]
         if not pages:
             pages = ['No Members']
         return pages
