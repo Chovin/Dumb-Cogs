@@ -511,6 +511,7 @@ class GenesisApps(commands.Cog):
                     if guild is None:
                         continue
 
+                    kicked = []
                     days_to_autokick = await self.config.guild(guild).DAYS_TO_KICK_IF_NO_ACTIVITY()
                     joined_before_autokick = None
                     if days_to_autokick:
@@ -543,6 +544,7 @@ class GenesisApps(commands.Cog):
                                             except:
                                                 pass
                                         await member.kick(reason="inactivity auto-kick")
+                                        kicked.append(member)
                             # check for alarms
                             if prev_day != day and (not await Application.app_exempt(self.config, member)) and not app.closed:
                                 await app.check_and_alarm()
@@ -552,7 +554,11 @@ class GenesisApps(commands.Cog):
                                     await app.check_application_forms()
                                 except AttributeError:
                                     pass
-                
+                    if kicked:
+                        cid = await self.config.guild(guild).WUFOO_ALERT_CHANNEL()
+                        channel = guild.get_channel(cid)
+                        if channel:
+                            await channel.send(f"-# **Kicked due to inactivity:** {', '.join([m.mention for m in kicked])}")
                 if prev_hour != hour:
                     for gid, wapi in self.wufoo_apis.items():
                         await wapi.pull_entries()
