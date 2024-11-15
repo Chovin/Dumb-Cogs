@@ -292,7 +292,7 @@ class Application:
             return
         if self.displayed:
             if self.thread.archived == self.closed:
-                await self.notify("Application closed")
+                await self.notify("Application closed", notify_role=False)
             self.closed = True
             await self.set_thread(await self.thread.edit(archived=True))
         await self.config.member(self.member).APP_CLOSED.set(True)
@@ -508,10 +508,13 @@ class Application:
             if self.displayed:
                 await self.display()
 
-    async def notify(self, *msgs):
+    async def notify(self, *msgs, notify_role=True):
         if not self.displayed:
             return
-        role = self.guild.get_role(await self.config.guild(self.guild).MENTION_ROLE())
+        if notify_role:
+            role = self.guild.get_role(await self.config.guild(self.guild).MENTION_ROLE())
+        else:
+            role = None
         multiple_nl = "\n" if len(msgs) > 1 else ''
         await self.thread.send(f"{role_mention(role) if role else ''} {self.member.mention} {multiple_nl}" + "\n".join(msgs), allowed_mentions=MENTION_EVERYONE)
 
