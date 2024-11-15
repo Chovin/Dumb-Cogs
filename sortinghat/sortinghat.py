@@ -538,12 +538,6 @@ class SortingHat(commands.Cog):
         await school.joined_msg_edit(member=ctx.author, message=msg)
 
     @commands.command()
-    async def mynation(self, ctx: commands.Context, user: discord.Member=None):
-        # TODO: make profile card
-        member = user or ctx.author
-        pass
-
-    @commands.command()
     @checks.mod_or_permissions(manage_messages=True)
     async def nationannounce(self, ctx: commands.Context, *, school: SchoolConverter=None):
         """List the nations in a persistent menu"""
@@ -652,14 +646,6 @@ class SortingHat(commands.Cog):
         
         disp = await SchoolDisplay.new(self, ctx.guild, ctx.channel.id, [school])
         await disp.display(sent_by=ctx.author)
-
-    @nationset.command(name="emoji")
-    async def nationset_emoji(self, ctx: commands.Context, emoji: discord.Emoji, *, school: SchoolConverter):
-        pass
-
-    @nationset.command(name="description")
-    async def nationset_description(self, ctx: commands.Context, school: SchoolConverter, *, description: str):
-        pass
 
     @nationset.command(name="swaporder")
     async def nationset_swap_order(self, ctx: commands.Context, schoolA: SchoolConverter, schoolB: SchoolConverter):
