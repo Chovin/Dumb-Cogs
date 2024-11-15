@@ -465,11 +465,14 @@ class Application:
         return [kind for kind in times if times[kind].timestamp() == track_alarms[kind]]
 
     def alarm_times(self):
-        return {
+        ret = {
             "message": self.last_message_date,
-            "checklist": self.last_checklist_date,
-            "joined": datetime.fromtimestamp(self.member.joined_at.timestamp())
+            "checklist": self.last_checklist_date
         }
+        if not isinstance(self.member, MissingMember):
+            ret["joined"] = datetime.fromtimestamp(self.member.joined_at.timestamp())
+
+        return ret
 
     async def check_application_forms(self):
         if await Application.app_exempt(self.config, self.member):
