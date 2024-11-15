@@ -483,7 +483,8 @@ class SortingHat(commands.Cog):
 
         amt = await guild_conf.MAX_MEMBER_DIFF()
         max_members = max([len(s.role.members) for s in choices])
-        choices = [s for s in choices if max_members - len(s.role.members) < amt]
+        min_members = min([len(s.role.members) for s in choices])
+        choices = [s for s in choices if len(s.role.members) - min_members < amt]
 
         weights = [max_members-len(s.role.members) + 1 for s in choices]
 
