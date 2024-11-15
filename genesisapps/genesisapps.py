@@ -462,7 +462,7 @@ class GenesisApps(commands.Cog):
 
             sr = r"(^|\W)" + "(?P<find>"
             er = ")" + r"($|\W)"
-            pattern = sr + "|".join(the_map) + er
+            pattern = sr + "|".join([re.escape(n) for n in the_map]) + er
             
             for m in re.finditer(pattern, message.content.lower()):
                 members.add(the_map[m.group('find')])
