@@ -8,6 +8,7 @@ from redbot.core.utils.chat_formatting import pagify
 from typing import Union, List
 from datetime import datetime, timedelta
 import asyncio
+import re
 
 from .checklist import Checklist, ChecklistSelect
 from .helpers import get_thread, role_mention, MissingMember, int_to_emoji
@@ -428,18 +429,14 @@ class Application:
         i = 1
         sent = None
         for question, answer in application.entry_items():
-            find_is = []
-            lanswer = answer.lower()
-            for to_find in highlights:
-                try:
-                    fi = lanswer.index(to_find)
-                except:
-                    continue
-                else:
-                    find_is.append((fi, fi + len(to_find)))
             # assumes no overlaps
-            for fi, tfi in reversed(find_is):
-                answer = answer[:fi] + "__**`" + answer[fi:tfi] + "`**__" + answer[tfi:]
+            for to_find in highlights:
+                answer = re.sub((r"(?P<word>(^|\W)" +
+                    to_find +
+                    r"(\W|$))"), 
+                    r"__**\g<word>**__",
+                    answer,
+                    flags=re.IGNORECASE)
             if question == "Entry Id":
                 qa = f"**{question}**: {answer}"
             else:
