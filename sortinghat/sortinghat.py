@@ -51,6 +51,11 @@ class SchoolListView(discord.ui.View):
         except AlreadySortedError:
             await interaction.response.send_message(f"You're already part of a nation", ephemeral=True)
             return
+        except MissingNeededRoleError:
+            rid = await cog.config.guild(interaction.user.guild).MUST_HAVE_ROLE()
+            role = interaction.user.guild.get_role(rid)
+            await interaction.response.send_message(f"You're not allowed to sort yourself because you are missing the {role.mention if role else '[role missing]'} role", ephemeral=True)
+            return
         
         await asyncio.sleep(1)
         await school.joined_msg_edit(response=interaction.response)
@@ -422,6 +427,10 @@ class AlreadySortedError(Exception):
     pass
 
 
+class MissingNeededRoleError(Exception):
+    pass
+
+
 class SortingHat(commands.Cog):
     """Lets members sort themselves into different optionally balanced roles"""
 
@@ -434,7 +443,8 @@ class SortingHat(commands.Cog):
         )
         self.config.register_guild(
             ROLES = {},
-            MAX_MEMBER_DIFF = 2
+            MAX_MEMBER_DIFF = 2,
+            MUST_HAVE_ROLE = None
         )
         self.config.register_member(
             FORCE_CHOICE = []
@@ -467,6 +477,13 @@ class SortingHat(commands.Cog):
         return [await School.new(self, guild, rs['NAME']) for rs in role_settings.values()]
     
     async def sort_member(self, member):
+        needed_rid = await self.config.guild(member.guild).MUST_HAVE_ROLE()
+        if needed_rid:
+            needed_role = member.guild.get_role(needed_rid)
+            if needed_role:
+                if not member.get_role(needed_role.id):
+                    raise MissingNeededRoleError(f"{member.name} is missing the {needed_role.name} role")
+                
         all_schools = await self.all_schools(member.guild)
         for s in all_schools:
             if member.get_role(s.role.id):
@@ -530,7 +547,12 @@ class SortingHat(commands.Cog):
         try:
             school = await self.sort_member(ctx.author)
         except AlreadySortedError:
-            await ctx.send(f"You're already part of a nation")
+            await ctx.reply(f"You're already part of a nation")
+            return
+        except MissingNeededRoleError:
+            rid = await self.config.guild(ctx.guild).MUST_HAVE_ROLE()
+            role = ctx.guild.get_role(rid)
+            await ctx.reply(f"You're not allowed to sort yourself because you are missing the {role.mention if role else '[role missing]'} role")
             return
         
         msg = await ctx.reply("Drumroll...")
@@ -587,6 +609,18 @@ class SortingHat(commands.Cog):
     async def nationset(self, ctx: commands.Context):
         """Setup commands for nations"""
         pass
+
+    @nationset.command(name="onlyrole")
+    async def nationset_onlyrole(self, ctx: commands.Context, role: discord.Role=None):
+        """Set a role that a member must have in order to sort themselves"""
+        if role == ctx.guild.default_role:
+            role = None
+        if role:
+            await self.config.guild(ctx.guild).MUST_HAVE_ROLE.set(role.id)
+            await ctx.send(f"Now only the members with the {role.mention} role will be allowed to sort themselves into nations")
+        else:
+            await self.config.guild(ctx.guild).MUST_HAVE_ROLE.set(None)
+            await ctx.send("There is now no set role that people will need in order to sort themselves into nations")
 
     @nationset.command(name="difference")
     async def nationset_difference(self, ctx: commands.Context, amount: int):
