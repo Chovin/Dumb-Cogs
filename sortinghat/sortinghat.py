@@ -444,7 +444,8 @@ class SortingHat(commands.Cog):
         self.config.register_guild(
             ROLES = {},
             MAX_MEMBER_DIFF = 2,
-            MUST_HAVE_ROLE = None
+            MUST_HAVE_ROLE = None,
+            FORCED_NEXT = []
         )
         self.config.register_member(
             FORCE_CHOICE = []
@@ -496,7 +497,14 @@ class SortingHat(commands.Cog):
             for rid in await self.config.member(member).FORCE_CHOICE()
         ]
         if not choices:
-            choices = all_schools
+            next_rids = await guild_conf.FORCED_NEXT()
+            if next_rids:
+                choices = [
+                    await School.new(self, member.guild, role_settings[str(rid)]["NAME"]) 
+                    for rid in next_rids
+                ]
+            else:
+                choices = all_schools
 
         amt = await guild_conf.MAX_MEMBER_DIFF()
         max_members = max([len(s.role.members) for s in choices])
@@ -635,12 +643,25 @@ class SortingHat(commands.Cog):
     
     @nationset.command(name="force")
     async def nationset_force(self, ctx: commands.Context, member: discord.Member, *schools: SchoolConverter):
+        """Force a person to be chosen from a list of nations when they choose"""
         rids = [s.role.id for s in schools]
         await self.config.member(member).FORCE_CHOICE.set(rids)
         if rids:
             await ctx.send(f"When {member.mention} sorts themselves into a nation, their nation will be picked from {', '.join([s.role.mention for s in schools])}")
         else:
             await ctx.send(f"When {member.mention} sorts themselves into a nation, their nation will be picked from all nations")
+
+    @nationset.command(name="forcenext")
+    async def nationset_forcenext(self, ctx: commands.Context, *schools: SchoolConverter):
+        """Force the next person to be chosen to be put into one of a list of nations. 
+        If the person already has a force applied to them using [p]nationset force, 
+        then this is ignored and this will be applied to the person after that"""
+        rids = [s.role.id for s in schools]
+        await self.config.guild(ctx.guild).FORCED_NEXT.set(rids)
+        if rids:
+            await ctx.send(f"When the next person sorts themselves into a nation, their nation will be chosen from {', '.join([s.role.mention for s in schools])}")
+        else:
+            await ctx.send(f"When the next person sorts themselves into a nation, their nation will be picked from all nations")
 
     @nationset.command(name="nation", aliases=["school"])
     async def nationset_nation(self, ctx: commands.Context, role: discord.Role, *, name: str=None):
