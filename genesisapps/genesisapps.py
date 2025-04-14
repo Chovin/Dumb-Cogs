@@ -183,7 +183,15 @@ class GenesisApps(commands.Cog):
             guild = self.bot.get_guild(gid)
             for smid in settings["APP_MEMBERS"]:
                 member = self.get_member(guild, int(smid))
-                self.set_application_for(member, await Application.new(member, guild, self.config, self.bot))
+                try:
+                    app = await Application.new(member, guild, self.config, self.bot)
+                    self.set_application_for(member, app)
+                except Exception as e:
+                    log.error(e)
+                    continue
+                if  not app.closed and (isinstance(member, MissingMember) or await Application.app_exempt(self.config, member)):
+                    await app.close()
+
     
     async def setup_thread_member_map(self):
         gmconf = await self.config.all_members()
@@ -231,13 +239,25 @@ class GenesisApps(commands.Cog):
         if not self.ready:
             async with self.ready_lock:
                 await self.setup_applications()
+                log.info('apps set up')
                 await self.setup_thread_member_map()
+                log.info('threads set up')
                 await self.setup_nickname_map()
-                await self.setup_all_wufoo()
-                for gid, apps in self.applications.items():
-                    for app in apps.values():
-                        if gid in self.wufoo_apis:
-                            app.set_wufooDB(self.wufoo_apis[app.guild.id].db)
+                log.info('nicks set up')
+                try:
+                    await self.setup_all_wufoo()
+                    log.info('wufoo set up')
+                except Exception as e:
+                    log.error(e)
+                else:
+                    for gid, apps in self.applications.items():
+                        for app in apps.values():
+                            if gid in self.wufoo_apis:
+                                app.set_wufooDB(self.wufoo_apis[app.guild.id].db)
+                                if app.wufoo_skipped:
+                                    await app.post_if_needed()
+                    log.info('posted apps')
+            log.info('setup complete')
         self.ready = True
 
     @commands.Cog.listener()
@@ -245,10 +265,7 @@ class GenesisApps(commands.Cog):
         await self._setup()
 
     async def cog_load(self):
-        try:
-            await self._setup()
-        except:
-            pass
+        await self._setup()
         self.loop_task = self.bot.loop.create_task(self.display_loop())
 
     async def cog_unload(self):
@@ -662,6 +679,7 @@ class GenesisApps(commands.Cog):
         To permanently close applications, either manually make a user exempt or give them the exempt role"""
         app = await self.get_or_set_application_for(member_or_member_id)  
         await app.close()
+        
 
     @genesisapps.command()
     async def delete(self, ctx: commands.Context, member_or_member_id: MemberOrMissingMemberConverter) -> None:
@@ -925,6 +943,27 @@ class GenesisApps(commands.Cog):
     async def list(self, ctx: commands.Context) -> None:
         """List applications that haven't been linked to a member yet"""
         await self.send_entry_queue_list(ctx)
+    
+    @_wufoo.command()
+    async def show(self, ctx: commands.Context, *, application: str) -> None:
+        """Show the given application"""
+        db = self.wufoo_apis[ctx.guild.id].db
+        try:
+            entry = db.get_queue_entry(application)
+        except KeyError:
+            await ctx.send(f"Could not find application: {application}")
+            return
+        
+        cl = Checklist(self.config.guild(ctx.guild).CHECKLIST_TEMPLATE, self.bot, ctx.guild)
+        to_highlights = []
+        for c in await cl.checklist_items():
+            ci_title = str(c.value).lower()
+            if ci_title.startswith(('used', 'contains')):
+                to_find = ci_title.split(' ', 1)[-1]
+                to_highlights.append(to_find)
+
+        for e in entry.embeds(to_highlights):
+            await ctx.send(embed=e)
 
     @_wufoo.command()
     async def ignore(self, ctx: commands.Context, *, applications: str) -> None:

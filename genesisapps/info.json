@@ -11,7 +11,8 @@
     "required_cogs": {},
     "requirements": [
         "git+https://github.com/Chovin/pyfoo.git",
-        "tldextract"
+        "tldextract",
+        "async-lru"
     ],
     "tags": [
         "wufoo",

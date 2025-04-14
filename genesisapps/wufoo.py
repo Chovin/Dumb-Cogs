@@ -1,11 +1,16 @@
 import discord
 
+from redbot.core.utils.chat_formatting import pagify
+
 from typing import List
 
 from pyfoo import PyfooAPI
 
 import tldextract
 from datetime import datetime
+import re
+
+from .helpers import int_to_emoji, CONTAINS_PRE, CONTAINS_POST
 
 
 class FormNotFound(Exception):
@@ -179,7 +184,6 @@ class Entry:
     def __init__(self, entry_dict, guild):
         self.guild = guild
         self._dict = entry_dict
-        
     
     @classmethod
     def from_dict(cls, entry_dict, guild):
@@ -229,6 +233,34 @@ class Entry:
     
     def is_linked(self):
         return bool(self['DISCORD_MEMBER_ID'])
+    
+    def embeds(self, highlights=[]):
+        # TODO: There's still the possibility that the highlight is split between messages, messing up the formatting
+        s = ""
+        i = 1
+        for question, answer in self.entry_items():
+            # assumes no overlaps
+            for to_find in highlights:
+                answer = re.sub(CONTAINS_PRE +
+                    re.escape(to_find) +
+                    CONTAINS_POST, 
+                    r"__**\g<word>**__",
+                    answer,
+                    flags=re.IGNORECASE)
+            if question == "Entry Id":
+                qa = f"**{question}**: {answer}"
+            else:
+                qa = f"\n\n**{int_to_emoji(i)}. {question}**\n{answer}"
+                i += 1
+            s += qa
+
+        first = True
+        for p in pagify(s, delims=['\n\n', '\n', ' '], priority=True, page_length=1900, escape_mass_mentions=True):
+            if first:
+                yield discord.Embed(description=p, title="Application")
+                first = False
+            else:
+                yield discord.Embed(description=p)
 
     def __str__(self):
         return self.__repr__()

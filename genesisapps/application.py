@@ -3,7 +3,6 @@ from discord.errors import NotFound, HTTPException
 
 from redbot.core.bot import Red
 from redbot.core.config import Config
-from redbot.core.utils.chat_formatting import pagify
 
 from typing import Union, List
 from datetime import datetime, timedelta
@@ -11,9 +10,10 @@ import asyncio
 import re
 
 from .checklist import Checklist, ChecklistSelect
-from .helpers import get_thread, role_mention, MissingMember, int_to_emoji
+from .helpers import get_thread, role_mention, MissingMember, IterCache, int_to_emoji, CONTAINS_PRE, CONTAINS_POST
 from .statusimage import statuses
 from .wufoo import WufooDB
+from .log import log as debug_log
 
 MENTION_EVERYONE = discord.AllowedMentions(roles=True, users=True, everyone=True)
 
@@ -163,6 +163,7 @@ class Application:
         self.last_message_date: datetime
         self.update: bool
         self.display_lock = asyncio.Lock()
+        self.wufoo_skipped = False
 
     @classmethod
     async def new(cls, member: discord.Member, guild: discord.Guild, config: Config, bot: Red, wufooDB: WufooDB=None):
@@ -175,7 +176,6 @@ class Application:
             raise ValueError("Tracking channel not found.")
 
         mconf = config.member(member)
-
         await mconf.ID.set(member.id)
 
         app.closed = await mconf.APP_CLOSED()
@@ -212,14 +212,19 @@ class Application:
             # wufoodb not set yet
             try:
                 await app.check_application_forms()
-            except AttributeError:
+            except AttributeError as e:
+                app.wufoo_skipped = True
                 pass
         else:
             app.displayed = True
             app.checklist = await Checklist.new(app.config.member(member).CHECKLIST, app.bot, app.guild, app.member, app)
             await app.set_thread(thread)
             app.display_message = await app.thread.fetch_message(await app.config.member(member).DISPLAY_MESSAGE_ID())
-            logmsg = await app.thread.fetch_message(await app.config.member(member).LOG_MESSAGE_ID())
+            logmsg = None
+            try:
+                logmsg = await app.thread.fetch_message(await app.config.member(member).LOG_MESSAGE_ID())
+            except:
+                pass
             app.log = await Log.new(mconf.LOG, logmsg, app.thread)
             if app.closed and not app.thread.archived:
                 await app.close()
@@ -399,7 +404,10 @@ class Application:
             elif ci_title.startswith(('used', 'contains')):
                 to_find = ci_title.split(' ', 1)[-1]
                 to_finds.append(to_find)
-                if to_find in answers:
+                if re.search(
+                        CONTAINS_PRE + re.escape(to_find) + CONTAINS_POST, 
+                        answers, flags=re.IGNORECASE
+                    ):
                     c.done = True
                     await self.checklist.update_item(c)
         
@@ -424,34 +432,10 @@ class Application:
     async def send_application(self, application, highlights=[]):
         if await Application.app_exempt(self.config, self.member):
             return False
-        # TODO: There's still the possibility that the highlight is split between messages, messing up the formatting
-        s = ""
-        i = 1
+        
         sent = None
-        for question, answer in application.entry_items():
-            # assumes no overlaps
-            for to_find in highlights:
-                answer = re.sub((r"(?P<word>(^|\W)" +
-                    to_find +
-                    r"(\W|$))"), 
-                    r"__**\g<word>**__",
-                    answer,
-                    flags=re.IGNORECASE)
-            if question == "Entry Id":
-                qa = f"**{question}**: {answer}"
-            else:
-                qa = f"\n\n**{int_to_emoji(i)}. {question}**\n{answer}"
-                i += 1
-            s += qa
-
-        first = True
-        for p in pagify(s, delims=['\n\n', '\n', ' '], priority=True, page_length=1900, escape_mass_mentions=True):
-            if first:
-                embed = discord.Embed(description=p, title="Application")
-            else:
-                embed = discord.Embed(description=p)
-            sent = sent or await self.thread.send(embed=embed)
-            first = False
+        for e in application.embeds(highlights):
+            sent = sent or await self.thread.send(embed=e)
         
         # pin first message
         await sent.pin()
@@ -471,6 +455,12 @@ class Application:
             ret["joined"] = datetime.fromtimestamp(self.member.joined_at.timestamp())
 
         return ret
+
+    async def post_if_needed(self):
+        await self.check_application_forms()
+        if self.closed:
+            await self.close()
+        self.wufoo_skipped = False
 
     async def check_application_forms(self):
         if await Application.app_exempt(self.config, self.member):
@@ -529,6 +519,8 @@ class Application:
         if isinstance(self.member, MissingMember):
             name = await self.config.member(self.member).NAME()
             timestamp = await self.config.member(self.member).LEFT_AT()
+            if not name:
+                name = f'<@ {self.member.id} >'
         else:
             name = identifiable_name(self.member)
             timestamp = int(self.member.joined_at.timestamp())
