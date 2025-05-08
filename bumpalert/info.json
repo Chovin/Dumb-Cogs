@@ -1,0 +1,18 @@
+{
+    "$schema": "https://raw.githubusercontent.com/Cog-Creators/Red-DiscordBot/V3/develop/schema/red_cog.schema.json",
+    "name": "BumpAlert",
+    "short": "For you competitive bumpers",
+    "description": "For those of you competitive about bumping",
+    "end_user_data_statement": "This cog stores your bump counts and whether or not you registered for alerts",
+    "install_msg": "[p]help BumpAlert",
+    "author": [
+        "chovin (irdumb)"
+    ],
+    "required_cogs": {},
+    "requirements": [],
+    "tags": [],
+    "min_bot_version": "3.5.0",
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}
