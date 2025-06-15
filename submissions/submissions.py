@@ -243,9 +243,10 @@ class SubmissionMessage():
             'from': msg.id,
             'to': []
         }
+        omsg = msg
         self = cls(submission, co)
         for mid in submission.to_members:
-            msg = await self._send_to(mid, msg)
+            msg = await self._send_to(mid, omsg)
             co['to'].append({
                 'to_member': mid,
                 'to_msg': msg.id
