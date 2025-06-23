@@ -1,5 +1,5 @@
 {
-  "\\b\\w*(?!be)nig(?!ht|er)\\w*\\b": "the N word",
+  "\\b\\w*(?!be)nig(?!ht|er|ame)\\w*\\b": "the N word",
   "fag": "fag",
   "rape": "rape",
   "\\b(?!(rac?|ty))\\w*coon\\w*\\b": "coon",
