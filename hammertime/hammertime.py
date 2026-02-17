@@ -97,15 +97,21 @@ def strftimeth(dt, fmt):
 def parse_datetime(txt: str, tz_str: str):
     txt = txt.lower().strip()
 
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    tz = gettz(tz_str)
+
+    today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
     tomorrow = today + timedelta(days=1)
     yesterday = today - timedelta(days=1)
     
-    txt = txt.replace('today', today.strftime('%Y-%m-%d'))
+    todayfmt = today.strftime('%Y-%m-%d')
+    txt = txt.replace('today', todayfmt)
     txt = txt.replace('tomorrow', tomorrow.strftime('%Y-%m-%d'))
     txt = txt.replace('yesterday', yesterday.strftime('%Y-%m-%d'))
 
-    tz = gettz(tz_str)
+    if not re.search(r"\b(\d{1,2}([-/]\d{1,2}))|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)", txt, re.IGNORECASE):
+        txt = f"{todayfmt} {txt}"
+
+    # tz = gettz(tz_str)
     tz_str = "ZONE"
     return dateutil.parser.parse(f"{txt} {tz_str}", fuzzy=True, tzinfos={tz_str: tz})
 
