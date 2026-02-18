@@ -12,6 +12,7 @@ import functools
 import dateutil.parser
 from dateutil.tz import gettz
 from dateutil.parser import ParserError
+import calendar
 import re
 
 
@@ -19,6 +20,14 @@ RE_RELATIVE_TIME = re.compile(r"(?P<amt>\d+|an?) ?(?P<period>(y(ea)?rs?)|(months
 RE_AT_IN = re.compile(r"(\s|^)(at|in)\s\d")
 RE_AT = re.compile(r"(\s|^)(at\s(?P<time>\d{1,2}:?\d{0,2})\s?(?P<ampm>am|pm)?(\W|$))")
 TIMEOUT = "TIMEOUT"
+
+
+def add_months(sourcedate, months):
+    month = sourcedate.month - 1 + months
+    year = sourcedate.year + month // 12
+    month = month % 12 + 1
+    day = min(sourcedate.day, calendar.monthrange(year, month)[1])
+    return sourcedate.replace(year=year, month=month, day=day)
 
 
 class TimeZoneSelectView(View):
@@ -140,14 +149,20 @@ def parse_delta(txt: str, tz_str: str):
 
         periods = {
             p[0]: p for p in
-            ["years", "months", "weeks", "days", "hours", "minutes", "seconds"]
+            ["years", "Months", "weeks", "days", "hours", "minutes", "seconds"]
         }
+        if period.startswith('month'):
+            period = 'Months'
         period = periods[period[0]]
 
         if past == ' ago':
             amt *= -1
 
-        now += timedelta(**{period: amt})
+        if period in ('Months', 'years'):
+            now = add_months(now, amt * (12 if period == 'years' else 1))
+        else:
+            now += timedelta(**{period: amt})
+        
 
     return now
 
