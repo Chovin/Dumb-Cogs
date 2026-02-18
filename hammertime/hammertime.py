@@ -19,6 +19,7 @@ import re
 RE_RELATIVE_TIME = re.compile(r"(?P<amt>\d+|an?) ?(?P<period>(y(ea)?rs?)|(months?)|(weeks?)|(days?)|(h(ou)?rs?)|(min(ute)?s?)|(sec(ond)?s?))(?P<past> ago)?")
 RE_AT_IN = re.compile(r"(\s|^)(at|in)\s\d")
 RE_AT = re.compile(r"(\s|^)(at\s(?P<time>\d{1,2}:?\d{0,2})\s?(?P<ampm>am|pm)?(\W|$))")
+RE_SET_DATE = re.compile(r"\b(\d{1,2}([-/]\d{1,2}))|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)|(mon|tue|wed|thu|fri|sat|sun)", re.IGNORECASE)
 TIMEOUT = "TIMEOUT"
 
 
@@ -117,7 +118,7 @@ def parse_datetime(txt: str, tz_str: str):
     txt = txt.replace('tomorrow', tomorrow.strftime('%Y-%m-%d'))
     txt = txt.replace('yesterday', yesterday.strftime('%Y-%m-%d'))
 
-    if not re.search(r"\b(\d{1,2}([-/]\d{1,2}))|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)", txt, re.IGNORECASE):
+    if not re.search(RE_SET_DATE, txt):
         txt = f"{todayfmt} {txt}"
 
     # tz = gettz(tz_str)
