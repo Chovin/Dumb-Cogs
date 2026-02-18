@@ -2,6 +2,7 @@ import discord
 from redbot.core import commands, checks
 from redbot.core.bot import Red
 from redbot.core.config import Config
+from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 
 from discord.ui import View, Select
 
@@ -13,12 +14,14 @@ import dateutil.parser
 from dateutil.tz import gettz
 from dateutil.parser import ParserError
 import calendar
+from enum import Enum
 import re
 
 
 RE_RELATIVE_TIME = re.compile(r"(?P<amt>\d+|an?) ?(?P<period>(y(ea)?rs?)|(months?)|(weeks?)|(days?)|(h(ou)?rs?)|(min(ute)?s?)|(sec(ond)?s?))(?P<past> ago)?")
 RE_AT_IN = re.compile(r"(\s|^)(at|in)\s\d")
 RE_AT = re.compile(r"(\s|^)(at\s(?P<time>\d{1,2}:?\d{0,2})\s?(?P<ampm>am|pm)?(\W|$))")
+RE_LIST = re.compile(r"\blist\b", re.IGNORECASE)
 RE_SET_DATE = re.compile(r"\b(\d{1,2}([-/]\d{1,2}))|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)|(mon|tue|wed|thu|fri|sat|sun)", re.IGNORECASE)
 TIMEOUT = "TIMEOUT"
 
@@ -29,6 +32,11 @@ def add_months(sourcedate, months):
     month = month % 12 + 1
     day = min(sourcedate.day, calendar.monthrange(year, month)[1])
     return sourcedate.replace(year=year, month=month, day=day)
+
+
+class DeltaDateTimeEnum(Enum):
+    DELTA = 0
+    DATETIME = 1
 
 
 class TimeZoneSelectView(View):
@@ -330,6 +338,15 @@ class HammerTime(commands.Cog):
         await message.reply(f"-# <t:{ts}:F> (<t:{ts}:R>)", mention_author=False)
 
 
+    async def get_datetime_for(self, user: discord.User, time_str: str):
+        """Throws NoTimeZoneError, AmbiguousTimeZoneError, ParserError"""
+
+        tz = await self.get_timezone_for(user)
+
+        try:
+            return (parse_delta(time_str, tz), DeltaDateTimeEnum.DELTA)
+        except ParserError:
+            return (parse_datetime(time_str, tz), DeltaDateTimeEnum.DATETIME)
 
     
     @commands.command(aliases=["ht"])
@@ -353,30 +370,30 @@ class HammerTime(commands.Cog):
         elif user_or_time is not None:
             user = user_or_time
 
-        time = time or 'now'
+        otime = time
+        time = time.lower().replace('list','').strip() or 'now'
+
+        list_everyone = bool(re.search(RE_LIST, f"{otime} {user.display_name} {user.name}"))
             
         pre = "You have" if user == ctx.author else f"{user.mention} has"
+
         try:
-            tz = await self.get_timezone_for(user)
+            dt, delta_datetime = await self.get_datetime_for(user, time)
         except NoTimeZoneError:
             await ctx.send(f"{pre} no timezone set. Use `{ctx.prefix}hammertimeset tz <timezone>` to set your timezone.")
             return 
         except AmbiguousTimeZoneError:
             await ctx.send(f"{pre} multiple timezone roles. Use `{ctx.prefix}hammertimeset tz <timezone>` to set your timezone.")
             return
-
-        try:
-            dt = parse_delta(time, tz)
         except ParserError:
-            try:
-                dt = parse_datetime(time, tz)
-            except ParserError:
-                await ctx.send("I couldn't understand that")
-                return
+            await ctx.send("I couldn't understand that")
+            return    
         
+
+        DT_FMT = "%A, %b %-d{th} at %-I:%M %p"
+        users_time = strftimeth(dt, DT_FMT)
         ts = int(dt.timestamp())
-        users_time = strftimeth(dt, "%A, %b %-d{th} at %-I:%M %p")
-        await ctx.send(
+        msg = (
             f"**Hammertime!**\n"
             f"{user.mention}'s **{users_time}** is your\n"
             f"-# `<t:{ts}:d>`: <t:{ts}:d>\n"
@@ -388,6 +405,84 @@ class HammerTime(commands.Cog):
             f"-# `<t:{ts}:R>`: <t:{ts}:R>\n"
             f"-# Not correct? make sure your timezone is set with `{ctx.prefix}hammertimeset tz <timezone>`\n"
         )
+
+        await ctx.send(msg, allowed_mentions=discord.AllowedMentions(users=False))
+
+        if list_everyone:
+            members = []
+            for m in ctx.guild.members:
+                try:
+                    tz = await self.get_timezone_for(m)
+                except (NoTimeZoneError, AmbiguousTimeZoneError):
+                    continue
+                ndt = dt.astimezone(gettz(tz))
+                members.append((m, ndt))
+            time_sorted_members = sorted(members, key=lambda x: x[1])
+            time_sorted_members = [(m, strftimeth(ndt, DT_FMT)) for m, ndt in time_sorted_members]
+
+            piled_members = {}
+            for m, utime in time_sorted_members:
+                if utime not in piled_members:
+                    piled_members[utime] = []
+                piled_members[utime].append(m)
+
+            EMPTY_LINE = '\u200b\n'
+            out = ""
+            lines_per_page = 17
+            ln = 0
+            # title = list(piled_members.keys())[0]
+            # out = f"**{title}**\n" + ("-"*32) + "\n"
+            def line_fmt(m, utime):
+                return f'-# {m.mention}\n'
+                # return f'-# {m.mention}{(20-len(m.display_name))*" "} {utime: >29}\n'
+            def title_fmt(utime):
+                return f"{EMPTY_LINE}**{utime}**\n" + ("-"*32) + "\n"
+            
+            pages = []
+            cursor = [(utime, sorted(ms, key=lambda m: m.display_name)) for utime, ms in piled_members.items()]
+            read = True
+            while cursor:
+                if read:
+                    utime, ms = cursor.pop(0)
+                pout = out
+                out += title_fmt(utime)
+                ln += 3
+                working_list = ms[::]
+                if len(working_list) + ln < lines_per_page:
+                    out += "".join(line_fmt(m, utime) for m in working_list)
+                    ln += len(working_list)
+                    read = True
+                    continue
+                elif ln >= lines_per_page: # the title made it go over limit
+                    pages.append(pout)
+                    out = ""
+                    ln = 0
+                    read = False
+                else: # this time's members make it go over limit
+                    while working_list:
+                        m = working_list.pop(0)
+                        out += line_fmt(m, utime)
+                        ln += 1
+                        if ln >= lines_per_page and working_list:
+                            pages.append(out)
+                            out = title_fmt(utime)
+                            ln = 3
+                    read = True
+
+                
+            t_desc = out
+            # a_desc = "\n".join(f'-# {mm:_<34}_{utime:_>31}' for m,utime,mm in alpha_sort_members)
+            # t_desc = "\n".join(f'-# {mm:_<34}_{utime:_>31}' for m,utime,mm in time_sort_members)
+            menu_pages = []
+            for i, page in enumerate(pages):
+                embed=discord.Embed(
+                    title=f"@{user.display_name}'s {users_time} is", 
+                    description=page)
+                embed.set_footer(text=f'{i+1}/{len(pages)}')
+                menu_pages.append(embed)
+        
+            await menu(ctx, menu_pages, controls=DEFAULT_CONTROLS)
+            return
 
     @commands.group()
     async def hammertimeset(self, ctx):
