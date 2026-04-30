@@ -265,8 +265,13 @@ class GenesisApps(commands.Cog):
         await self._setup()
 
     async def cog_load(self):
+        self.bot.loop.create_task(self.setup_on_load())
+    
+    async def setup_on_load(self):
+        await self.bot.wait_until_ready()
         await self._setup()
         self.loop_task = self.bot.loop.create_task(self.display_loop())
+        print('genesisapps cog loaded')
 
     async def cog_unload(self):
         self.loop_task.cancel()
