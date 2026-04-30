@@ -183,6 +183,11 @@ class GenesisApps(commands.Cog):
             guild = self.bot.get_guild(gid)
             for smid in settings["APP_MEMBERS"]:
                 member = self.get_member(guild, int(smid))
+                if isinstance(member, MissingMember) and await Application.peek_closed(member, self.config):
+                    # if the member is missing and the app is closed, skip
+                    # they'll trigger their app opened again when they rejoin
+                    # TODO: ensure that messages / activity in those closed threads also reopen the app
+                    continue
                 try:
                     app = await Application.new(member, guild, self.config, self.bot)
                     self.set_application_for(member, app)
@@ -888,6 +893,14 @@ class GenesisApps(commands.Cog):
         """Setup Wufoo-related settings
         
         form_url should be the url to the Wufoo form"""
+        await ctx.send(
+            "This will unset wufoo API settings. Are you sure? (yes/no)" if form_url is None else
+            "This will change wufoo API settings. Are you sure? (yes/no)"
+        )
+        msg = await self.bot.wait_for('message', check=MessagePredicate.same_context(channel=ctx.channel, user=ctx.author), timeout=30)
+        if msg.content.lower() != "yes":
+            await ctx.send("Cancelled")
+            return
         if not form_url:
             await self.config.guild(ctx.guild).WUFOO_FORM_URL.set(None)
             await self.config.guild(ctx.guild).WUFOO_API_KEY.set(None)

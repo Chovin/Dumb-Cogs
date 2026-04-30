@@ -166,6 +166,12 @@ class Application:
         self.wufoo_skipped = False
 
     @classmethod
+    async def peek_closed(cls, member: discord.Member, config: Config):
+        mconf = config.member(member)
+        closed = await mconf.APP_CLOSED()
+        return closed
+
+    @classmethod
     async def new(cls, member: discord.Member, guild: discord.Guild, config: Config, bot: Red, wufooDB: WufooDB=None):
         if member.bot:
             raise ValueError("Cannot create application for bot.")
