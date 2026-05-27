@@ -85,8 +85,8 @@ class BumpAlert(commands.Cog):
                 continue
             last_notif_id = await self.config.member(m).LAST_BUMP_MSG()
             if last_notif_id:
-                oldmsg = await m.fetch_message(last_notif_id)
                 try:
+                    oldmsg = await m.fetch_message(last_notif_id)
                     await oldmsg.edit(content=f'next bump at <t:{ts}:F> (<t:{ts}:R>)',embed=embed)
                 except:
                     pass
@@ -112,8 +112,8 @@ class BumpAlert(commands.Cog):
                 continue
             last_notif_id = await self.config.member(m).LAST_BUMP_MSG()
             if last_notif_id:
-                oldmsg = await m.fetch_message(last_notif_id)
-                try: 
+                try:
+                    oldmsg = await m.fetch_message(last_notif_id)
                     await oldmsg.delete()
                 except:
                     pass
