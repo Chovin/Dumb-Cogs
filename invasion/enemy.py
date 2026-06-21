@@ -1,6 +1,5 @@
 import discord
 from discord import Member
-
 import random
 import json
 import asyncio
@@ -8,13 +7,14 @@ import math
 import re
 import os
 
-
 ARRIVING_STATE = "arriving"
 WIN_STATE = "dying"
-LOSE_STATE = "attacking"
+def new_func():
+    LOSE_STATE = "attacking"
+    return LOSE_STATE
 
+LOSE_STATE = new_func()
 BOMB_DMG_TYPE = "bomb"
-
 
 class Enemy():
     def __init__(self, path: str, min_enrage_mult: float, max_enrage_mult: float, enraged: bool=False):
@@ -50,21 +50,10 @@ class Enemy():
         self.max_enrage_mult = max_enrage_mult
         self.enraged = enraged
 
-        # maybe reduce the number of these so it makes more sense which is stronger
         self._title_prefixes = [
-            "Angry",
-            "Enraged",
-            "Formidable",
-            "Rampaging",
-            "Ferocious",
-            "Epic",
-            "Mythic",
-            "Ancient",
-            "Colossal",
-            "Unstoppable",
-            "Apocalyptic",
-            "Eternal",
-            "Divine"
+            "Angry", "Enraged", "Formidable", "Rampaging", "Ferocious",
+            "Epic", "Mythic", "Ancient", "Colossal", "Unstoppable",
+            "Apocalyptic", "Eternal", "Divine"
         ]
         if stats.get('enrage_titles_override'):
             self._title_prefixes = stats['enrage_titles_override']
@@ -72,14 +61,13 @@ class Enemy():
         self.enraged_amt = min_enrage_mult
 
         if enraged:
-            # am I doing my math right here?
-            min_enrage_mult-=1
-            max_enrage_mult-=1
-            enraged_amt = min_enrage_mult + random.random() * (max_enrage_mult-min_enrage_mult)
+            min_enrage_mult -= 1
+            max_enrage_mult -= 1
+            enraged_amt = min_enrage_mult + random.random() * (max_enrage_mult - min_enrage_mult)
 
             self.health *= enraged_amt + 1
             self.max_health = self.health
-            self.reward_mult *= enraged_amt * .75 + 1
+            self.reward_mult *= enraged_amt * 0.75 + 1
             self.enraged_amt = enraged_amt + 1
 
             self.name = f"{self.title_prefix} {self.name}"
@@ -158,7 +146,6 @@ class Enemy():
         px = len(self._title_prefixes) - 1
 
         return self._title_prefixes[
-            # map value from between mn and mx (exclusive) to between pn and px (inclusive)
             math.floor((self.enraged_amt - mn) / (mx - mn) * (px - pn)) + pn
         ]
     
@@ -168,7 +155,7 @@ class Enemy():
         try:
             return max(5, cd)
         except:
-            return max(5, random.random()*(cd[1]-cd[0]) + cd[0])
+            return max(5, random.random() * (cd[1] - cd[0]) + cd[0])
         
     def format_msg(self, msg, **kwargs):
         if msg:
@@ -182,52 +169,56 @@ class Enemy():
             return
         is_bomb = dmg_type == BOMB_DMG_TYPE
         pid = player.id
-        # dmg as an arg for purchasable bombs
         if (not is_bomb) and dmg_type not in self.hurt_by:
-            # miss penalty
-            self.hurt_mult[pid] = self.hurt_mult.get(pid, 1) * .9
+            self.hurt_mult[pid] = self.hurt_mult.get(pid, 1) * 0.9
             return 0
         hurt_mult = 1 if is_bomb else self.hurt_mult.get(pid, 1)
-        dmg = damage * hurt_mult * max(1 - (self.armor+self.added_armor), 0)
+        dmg = damage * hurt_mult * max(1 - (self.armor + self.added_armor), 0)
         self.health -= dmg
         if self.health <= 0:
             self.health = 0
         self.attacked_by[player.id] = self.attacked_by.get(player.id, 0) + min(self.health, dmg)
         if not is_bomb:
-            # make future hits weaker
-            self.hurt_mult[pid] = self.hurt_mult.get(pid, 1) * .75
+            self.hurt_mult[pid] = self.hurt_mult.get(pid, 1) * 0.75
         else:
             self.bombed_by[player.id] = self.bombed_by.get(player.id, 0) + 1
         return dmg
-
-    def attack(self):
-        self.state = LOSE_STATE
-        return self.penalty_mult
 
     def tick(self):
         if self.health <= 0:
             self.health = 0
             self.state = WIN_STATE
             return
-        
 
+        # Health-based state transitions
+        health_percentage = self.health_percentage
+        
+        if health_percentage > 0.75:
+            self.state = "standing"  # Dragon stands tall
+        elif health_percentage > 0.25:
+            self.state = "flying"    # Dragon flies above attacks
+        else:
+            self.state = "attacking"  # Dragon breathes fire on the server
+
+        # Handle the arrival state transition
         if self.state == ARRIVING_STATE:
             self.state = self.default_state
         else:
             choices = {s: self.states[s].get('weight', 1) for s in 
-                self.state_dict.get('next_state', self._active_states)
-            }
+                       self.state_dict.get('next_state', self._active_states)}
             self.state = random.choices(
                 [*choices],
                 weights=[*choices.values()]
             )[0]
+
         self.hurt_mult = {}
-    
+
     async def update(self):
         self.bombed_by = {}
-
+        
         await asyncio.sleep(self.countdown)
-        self.linger -= self.countdown/60
+        self.linger -= self.countdown / 60
+        
         if self.linger <= 0:
             self.linger = 0
             if self.health <= 0:
@@ -235,7 +226,13 @@ class Enemy():
             else:
                 self.state = LOSE_STATE
             return
+            
+        # Add logic for handling Dragon's behaviors based on current state
+        if self.state == "attacking":
+            # Dragon deals damage when in attacking state
+            damage = self.attacking
+            # You might want to specify how much damage the Dragon does here
+            # For example, deal damage to players that are currently engaged
+            # Implement damage dealing logic here if necessary
+
         self.tick()
-
-
-    
